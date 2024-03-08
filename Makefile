@@ -18,7 +18,7 @@ SRC_DIRS = . lib/rp2040-hal/src/ lib/rp2040-hal/src/* lib/mini-kernel/src/ lib/m
 INC_DIRS = . lib/rp2040-hal/include/ lib/mini-kernel/include/ ./include/
 
 # linker script path
-LINKER_SCRIPT = rp2040-hal/rp2040_ls.ld
+LINKER_SCRIPT = lib/rp2040-hal/rp2040_ls.ld
 
 #-----------------------------------------------------------------------------------------------------------------------------------------------------------------
 

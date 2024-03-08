@@ -1,0 +1,15 @@
+{
+    "files.associations": {
+        "*.s": "arm",
+        "*.dis": "arm",
+        "*.c": "c",
+        "*.h": "c",
+        "__mutex_base": "c",
+        "atomic": "c",
+        "ios": "c",
+        "__bit_reference": "c",
+        "bitset": "c",
+        "unordered_map": "c"
+    },
+    "cortex-debug.variableUseNaturalFormat": true
+}
