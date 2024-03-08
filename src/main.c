@@ -1,9 +1,7 @@
-#include "rp2040.h"
-#include "hal/resets.h"
+#include "common_defs.h"
 #include "hal/xosc.h"
 #include "hal/pll.h"
 #include "hal/clocks.h"
-#include "hal/gpio.h"
 #include "hal/fc0.h"
 
 //----------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -23,9 +21,9 @@ int main() {
 
     // set the XOSC as a reference clock and initialize the frequency counter
     clocks_set_source(clk_ref, CLOCK_SRC_XOSC_CLKSRC);
-    fc0_init(12000000);
+    fc0_init(F_XOSC_HZ);
 
-    SysTick_Config(100000);
+    SysTick_Config(F_CORE_HZ / 1000);
 
     gpio_init();
     gpio_set_dir(16, GPIO_DIR_OUTPUT);
@@ -40,7 +38,11 @@ int main() {
 	}
 }
 
+//---- IRQ HANDLERS ----------------------------------------------------------------------------------------------------------------------------------------------
+
 void SysTick_Handler() {
 
     time++;
 }
+
+//----------------------------------------------------------------------------------------------------------------------------------------------------------------
