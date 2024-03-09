@@ -1,3 +1,6 @@
 [submodule "lib/rp2040-hal"]
 	path = lib/rp2040-hal
 	url = https://github.com/m-kopka/rp2040-hal.git
+[submodule "lib/mini-kernel"]
+	path = lib/mini-kernel
+	url = https://github.com/m-kopka/mini-kernel.git
