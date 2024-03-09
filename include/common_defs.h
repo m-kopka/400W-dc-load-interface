@@ -5,7 +5,7 @@
 
 #include "rp2040.h"
 #include "hal/gpio.h"
-#include "hal/uart.h"
+#include "debug_uart.h"
 #include "utils/string.h"
 
 #include "hw_config.h"
