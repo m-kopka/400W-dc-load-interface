@@ -23,7 +23,7 @@ uint8_t shell_parse_args(char *input, char **args, uint8_t argc);
 void shell_print_header(void) {
 
     debug_print("----------------------------------------------------------\n");
-    debug_print("  @@@@&        @@@@     @@@@   | 400W DC electronic load\n");
+    debug_print("  @@@@&        @@@@     @@@@   | 400W DC Electronic L.oad\n");
     debug_print("  @@@@@&      @@@@@   @@@@     | Interface Panel\n");
     debug_print("  @@@@@@@    @@@@@@ @@@@       | \n");
     debug_print("  @@@ @@@@  @@@ @@@@@@@@       | \n");

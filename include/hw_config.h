@@ -39,7 +39,7 @@
 #define DISPLAY_SDA_GPIO            0
 #define DISPLAY_SCL_GPIO            1
 #define DISPLAY_I2C_ADDRESS         0x3C
-#define DISPLAY_I2C_FREQUENCY_KHZ   400
+#define DISPLAY_I2C_FREQUENCY_KHZ   400000
 #define DISPLAY_WIDTH               128
 #define DISPLAY_HEIGHT              64
 
