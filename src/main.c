@@ -24,7 +24,6 @@ int main() {
     
     kernel_init(F_CORE_HZ);
     kernel_create_task(debug_uart_task, 2000);
-    kernel_create_task(blink_task, 1000);
     kernel_create_task(gui_task, 100);
     kernel_start();
 
