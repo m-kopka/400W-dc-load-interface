@@ -4,17 +4,17 @@
 //---- SYSTEM ----------------------------------------------------------------------------------------------------------------------------------------------------
 
 #define F_XOSC_HZ       12000000    // crystal oscillator frequency [Hz]
-#define F_CORE_HZ       100000000   // core clock frequency
+#define F_CORE_HZ       100000000   // core clock frequency [Hz]
 
-#define DEBUG_UART  UART1
-#define DEBUG_UART_BAUD 115200
+#define DEBUG_UART          UART1
+#define DEBUG_UART_BAUD     115200
 #define DEBUG_UART_TX_GPIO  4
 #define DEBUG_UART_RX_GPIO  5
 
 //---- KEY BACKLIGHT LED -----------------------------------------------------------------------------------------------------------------------------------------
 
-#define KEY_BACKLIGHT_LED_GPIO 16
-#define KEY_BACKLIGHT_LED_BRIGHTNESS 4095
+#define KEY_BACKLIGHT_LED_GPIO          16
+#define KEY_BACKLIGHT_LED_BRIGHTNESS    4095
 
 //---- PUSH BUTTONS ----------------------------------------------------------------------------------------------------------------------------------------------
 

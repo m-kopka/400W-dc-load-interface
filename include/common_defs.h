@@ -5,6 +5,7 @@
 
 #include "rp2040.h"
 #include "hal/gpio.h"
+#include "hal/timer.h"
 #include "debug_uart.h"
 #include "utils/string.h"
 

@@ -3,6 +3,7 @@
 #include "hal/pll.h"
 #include "hal/clocks.h"
 #include "hal/fc0.h"
+#include "hal/watchdog.h"
 #include "gui.h"
 
 void blink_task(void);
@@ -19,6 +20,8 @@ int main() {
     // set the XOSC as a reference clock and initialize the frequency counter
     clocks_set_source(clk_ref, CLOCK_SRC_XOSC_CLKSRC);
     fc0_init(F_XOSC_HZ);
+
+    watchdog_start_tick(F_XOSC_HZ);
 
     gpio_init();
     

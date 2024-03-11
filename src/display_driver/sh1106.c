@@ -25,6 +25,10 @@
 #define SH1106_CMD_COMMON_PADS_HW_CONFIG_MODE_SET   0xDA    // This command is to set the common signals pad configuration.
 #define SH1106_CMD_VCOM_DESELECT_LEVEL_MODE_SET     0xDB    // This command is to set the common pad output voltage level at deselect stage.
 
+//---- CONSTANTS -------------------------------------------------------------------------------------------------------------------------------------------------
+
+#define SH1106_I2C_TIMEOUT_US   1000        // driver aborts transmission if the display doesn't respond with ACK within this time window [us]
+
 //---- INTERNAL FUNCTION PROTOTYPES ------------------------------------------------------------------------------------------------------------------------------
 
 void __sh1106_command_8(uint8_t command);
@@ -73,10 +77,10 @@ void sh1106_send_pixel_data(uint8_t *data, uint16_t size, uint8_t page, uint8_t 
     __sh1106_command_8(SH1106_CMD_SET_COLUMN_ADDRESS_LOW  | ((2 + column_adress) & 0xf));     // set column address low 4 bits
     __sh1106_command_8(SH1106_CMD_SET_COLUMN_ADDRESS_HIGH | ((2 + column_adress) >> 4));      // set column address high 4 bits
     
-    i2c_start_transmission(DISPLAY_I2C, DISPLAY_I2C_ADDRESS);
-    i2c_write(DISPLAY_I2C, SH1106_CMD_SET_DISPLAY_START_LINE | 0x0, false);
+    i2c_start_transmission(DISPLAY_I2C, DISPLAY_I2C_ADDRESS, SH1106_I2C_TIMEOUT_US);
+    i2c_write(DISPLAY_I2C, SH1106_CMD_SET_DISPLAY_START_LINE | 0x0, false, SH1106_I2C_TIMEOUT_US);
 
-    for (uint16_t i = 0; i < size; i++) i2c_write(DISPLAY_I2C, data[i], i == (size - 1));
+    for (uint16_t i = 0; i < size; i++) i2c_write(DISPLAY_I2C, data[i], i == (size - 1), SH1106_I2C_TIMEOUT_US);
 }
 
 //---- PRIVATE FUNCTIONS -----------------------------------------------------------------------------------------------------------------------------------------
@@ -84,9 +88,9 @@ void sh1106_send_pixel_data(uint8_t *data, uint16_t size, uint8_t page, uint8_t 
 // send a single byte display command via I2C
 void __sh1106_command_8(uint8_t command) {
 
-    i2c_start_transmission(DISPLAY_I2C, DISPLAY_I2C_ADDRESS);
-    i2c_write(DISPLAY_I2C, 0x00, false);
-    i2c_write(DISPLAY_I2C, command, true);
+    i2c_start_transmission(DISPLAY_I2C, DISPLAY_I2C_ADDRESS, SH1106_I2C_TIMEOUT_US);
+    i2c_write(DISPLAY_I2C, 0x00, false, SH1106_I2C_TIMEOUT_US);
+    i2c_write(DISPLAY_I2C, command, true, SH1106_I2C_TIMEOUT_US);
 }
 
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
