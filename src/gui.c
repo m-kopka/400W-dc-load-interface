@@ -11,7 +11,8 @@ void gui_print_decimal(int value, const uint8_t *font, uint8_t x_pos, uint8_t y_
 
 void gui_task(void) {
 
-    kernel_create_task(keypad_buttons_task, 10);
+    uint32_t keypad_buttons_stack[32];
+    kernel_create_task(keypad_buttons_task, keypad_buttons_stack, sizeof(keypad_buttons_stack), 10);
 
     int bug_pos_x = 0;
     int bug_pos_y = 0;
