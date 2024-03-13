@@ -39,7 +39,7 @@
 #define DISPLAY_SDA_GPIO            0
 #define DISPLAY_SCL_GPIO            1
 #define DISPLAY_I2C_ADDRESS         0x3C
-#define DISPLAY_I2C_FREQUENCY_KHZ   400000
+#define DISPLAY_I2C_FREQUENCY_HZ    400000
 #define DISPLAY_WIDTH               128
 #define DISPLAY_HEIGHT              64
 
@@ -50,7 +50,7 @@
 #define LOAD_CMD_SPI_SCK_GPIO       18
 #define LOAD_CMD_SPI_MOSI_GPIO      19
 #define LOAD_CMD_SPI_MISO_GPIO      16
-#define LOAD_CMD_SPI_FREQUENCY_KHZ  128
+#define LOAD_CMD_SPI_FREQUENCY_HZ   128000
 
 //----------------------------------------------------------------------------------------------------------------------------------------------------------------
 

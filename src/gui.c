@@ -4,6 +4,7 @@
 #include "keypad.h"
 #include "gui-bitmaps.h"
 
+#include "cmd_interface/cmd_spi_driver.h"
 
 //---- FUNCTIONS -------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -16,8 +17,9 @@ void gui_task(void) {
     bool bug_dir_x = 1;
     bool bug_dir_y = 1;
 
-    bool load_enabled = false;
     kernel_time_t load_toggled_since = 0;
+
+    cmd_driver_init();
 
     display_init();
 
@@ -28,12 +30,19 @@ void gui_task(void) {
     kernel_sleep_ms(2000);
 
     while (1) {
+
+        cmd_read(CMD_ADDRESS_ID);
+
+        uint16_t status_register = cmd_read(CMD_ADDRESS_STATUS);
+        bool load_enabled = status_register & 0x0001;
+
+        keypad_set_led(load_enabled);
         
         // load enable button
         if (keypad_is_pressed(6, true)) {
             
-            load_enabled = !load_enabled;
-            keypad_set_led(load_enabled);
+            if (!load_enabled) cmd_write(CMD_ADDRESS_ENABLE, 0xABCD);
+            else cmd_write(CMD_ADDRESS_ENABLE, 0x0000);
         }
 
         display_flush_frame_buffer();

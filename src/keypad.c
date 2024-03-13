@@ -39,12 +39,12 @@ void keypad_buttons_task(void) {
     gpio_set_dir(KEY6_GPIO, GPIO_DIR_INPUT);
     gpio_set_pull(KEY6_GPIO, GPIO_PULLUP);
 
-    pwm_init();
+    /*pwm_init();
     pwm_set_resolution(pwm_gpio_to_slice(KEY_BACKLIGHT_LED_GPIO), 12);
     pwm_set_frequency(pwm_gpio_to_slice(KEY_BACKLIGHT_LED_GPIO), 1000);
     keypad_set_led(false);
     gpio_set_function(KEY_BACKLIGHT_LED_GPIO, GPIO_FUNC_PWM);
-    pwm_set_enable(pwm_gpio_to_slice(KEY_BACKLIGHT_LED_GPIO), true);
+    pwm_set_enable(pwm_gpio_to_slice(KEY_BACKLIGHT_LED_GPIO), true);*/
 
     gpio_set_dir(ENCODER_A_GPIO, GPIO_DIR_INPUT);
     gpio_set_dir(ENCODER_B_GPIO, GPIO_DIR_INPUT);

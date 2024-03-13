@@ -39,7 +39,7 @@ void __sh1106_command_16(uint8_t command, uint8_t setting);
 // initialize I2C communication and send the display inizialization sequence
 void sh1106_init(void) {
 
-    i2c_init(DISPLAY_I2C, DISPLAY_I2C_FREQUENCY_KHZ, DISPLAY_SDA_GPIO, DISPLAY_SCL_GPIO);
+    i2c_init(DISPLAY_I2C, DISPLAY_I2C_FREQUENCY_HZ, DISPLAY_SDA_GPIO, DISPLAY_SCL_GPIO);
 
     __sh1106_command_8(SH1106_CMD_DISPLAY_OFF);
     __sh1106_command_16(SH1106_CMD_SET_DISPLAY_DIVIDE_RATIO, 0x80);
