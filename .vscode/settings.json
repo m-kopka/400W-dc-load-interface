@@ -9,7 +9,13 @@
         "ios": "c",
         "__bit_reference": "c",
         "bitset": "c",
-        "unordered_map": "c"
+        "unordered_map": "c",
+        "__memory": "c",
+        "limits": "c",
+        "locale": "c",
+        "ratio": "c",
+        "tuple": "c",
+        "sstream": "c"
     },
     "cortex-debug.variableUseNaturalFormat": true
 }

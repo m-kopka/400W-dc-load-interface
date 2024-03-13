@@ -4,9 +4,8 @@
 #include "hal/clocks.h"
 #include "hal/fc0.h"
 #include "hal/watchdog.h"
+#include "load.h"
 #include "gui.h"
-
-void blink_task(void);
 
 int main() {
 
@@ -21,30 +20,20 @@ int main() {
     clocks_set_source(clk_ref, CLOCK_SRC_XOSC_CLKSRC);
     fc0_init(F_XOSC_HZ);
 
+    // initialize the watchdog timer to generate a 1us tick for the timer
     watchdog_start_tick(F_XOSC_HZ);
 
     gpio_init();
     
     kernel_init(F_CORE_HZ);
     kernel_create_task(debug_uart_task, 2000);
+    kernel_create_task(load_task, 100);
     kernel_create_task(gui_task, 100);
     kernel_start();
 
 	while (1) {
 
         NVIC_SystemReset();
-    }
-}
-
-void blink_task(void) {
-
-    gpio_write(16, HIGH);
-    gpio_set_dir(16, GPIO_DIR_OUTPUT);
-
-    while (1) {
-
-        gpio_toggle(16);
-        kernel_sleep_ms(500);
     }
 }
 

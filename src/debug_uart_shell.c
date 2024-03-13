@@ -1,5 +1,6 @@
 #include "common_defs.h"
 #include "debug_uart.h"
+#include "load.h"
 
 //---- INTERNAL FUNCTIONS ----------------------------------------------------------------------------------------------------------------------------------------
 
@@ -23,7 +24,7 @@ uint8_t shell_parse_args(char *input, char **args, uint8_t argc);
 void shell_print_header(void) {
 
     debug_print("----------------------------------------------------------\n");
-    debug_print("  @@@@&        @@@@     @@@@   | 400W DC Electronic L.oad\n");
+    debug_print("  @@@@&        @@@@     @@@@   | 400W DC Electronic Load\n");
     debug_print("  @@@@@&      @@@@@   @@@@     | Interface Panel\n");
     debug_print("  @@@@@@@    @@@@@@ @@@@       | \n");
     debug_print("  @@@ @@@@  @@@ @@@@@@@@       | \n");
@@ -36,9 +37,10 @@ void shell_print_header(void) {
 
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
-// detects commands from the DEBUG_UART and respods to them
+// detects commands from the DEBUG_UART and responds to them
 void shell_update(char *buffer) {
 
+    if (buffer[0] == '\0') return;      // no command
     while ((buffer[0] <= ' ') && (buffer[0] != '\0')) buffer++;
 
     char *args[5];
@@ -57,6 +59,76 @@ void shell_update(char *buffer) {
     else if (SHELL_CMD("reboot")) {
 
         NVIC_SystemReset();
+    }
+
+    //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
+    // enables or disables the load
+    else if (SHELL_CMD("en")) {
+
+        shell_assert_argc(1);
+
+        if (COMPARE_ARG(1, "0")) {
+
+            load_set_enable(false);
+            debug_print("load disabled.\n");
+        }
+
+        else if (COMPARE_ARG(1, "1")) {
+
+            load_set_enable(true);
+            debug_print("load enabled.\n");
+        }
+
+        else debug_print("invalid argument.\n");
+    }
+
+    //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
+    // sets the load CC level
+    else if (SHELL_CMD("iset")) {
+
+        shell_assert_argc(1);
+
+        int current = atoi(args[1]);
+        if (current >= 0 && current <= 10000) {     // limit to 10A for now
+
+            load_set_cc_level((uint16_t)current);
+
+            debug_print("CC level set to ");
+            debug_print_int_dec(current, 2);
+            debug_print(" mA.\n");
+        }
+    }
+
+    //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
+    // prints the load voltage
+    else if (SHELL_CMD("vsen")) {
+
+        debug_print("load input voltage: ");
+        debug_print_int_dec(load_get_voltage_mv(), 2);
+        debug_print(" V\n");
+    }
+
+    //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
+    // prints total load current
+    else if (SHELL_CMD("isen")) {
+
+        debug_print("load current: ");
+        debug_print_int_dec(load_get_total_current_ma(), 2);
+        debug_print(" A\n");
+    }
+
+    //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
+    // prints total load current
+    else if (SHELL_CMD("psen")) {
+
+        debug_print("load power: ");
+        debug_print_int_dec(load_get_voltage_mv() * load_get_total_current_ma() / 1000, 2);
+        debug_print(" W\n");
     }
 
     //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
