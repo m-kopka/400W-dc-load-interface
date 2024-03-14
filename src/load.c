@@ -54,12 +54,7 @@ void load_task(void) {
                 break;
         }
 
-        debug_print_int(kernel_get_time_ms());
-        debug_print("\n");
-
-
-        kernel_sleep_ms(10);
-        //kernel_yield();
+        kernel_yield();
     }
 }
 
