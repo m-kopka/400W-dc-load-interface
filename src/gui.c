@@ -58,6 +58,8 @@ void gui_task(void) {
 
     while (1) {
 
+        while (!load_get_data_capture_done()) kernel_yield();
+
         bool load_enabled = load_get_enable();
         load_fault_t fault_register = load_get_faults();
         uint32_t load_voltage_mv = load_get_voltage_mv();
@@ -163,10 +165,7 @@ void gui_task(void) {
         if (fault_register & LOAD_FAULT_FUSE_R2) display_draw_string("FR2 ", font_6x8, cursor_pos, 24, &cursor_pos);
         if (fault_register & LOAD_FAULT_EXTERNAL) display_draw_string("EXT ", font_6x8, cursor_pos, 24, &cursor_pos);
 
-        if (load_get_vsensrc()) display_draw_string("REM", font_6x8, 48, 0, 0);
-        else display_draw_string("INT", font_6x8, 48, 0, 0);
-
-        if (load_get_not_in_reg()) display_draw_string("REG!", font_6x8, 48, 8, 0);
+        if (load_get_not_in_reg()) display_draw_string("REG!", font_6x8, 48, 0, 0);
 
         cursor_pos = 104;
         if (load_temp < 10) display_draw_char(' ', font_6x8, cursor_pos, 0, &cursor_pos);
@@ -212,6 +211,8 @@ void gui_task(void) {
         
 
         display_render_frame();
+
+        load_start_data_capture();
 
         //------------------------------------------------------------------------------------------------------------------------------------------------------------
 

@@ -46,7 +46,10 @@
 //---- LOAD CMD SPI ----------------------------------------------------------------------------------------------------------------------------------------------
 
 #define LOAD_CMD_SPI                SPI0
-#define LOAD_CMD_SPI_CS_GPIO        17
+#define LOAD_CMD_SPI_CS0_GPIO       17
+#define LOAD_CMD_SPI_CS1_GPIO       17
+#define LOAD_CMD_SPI_CS2_GPIO       17
+#define LOAD_CMD_SPI_CS3_GPIO       17
 #define LOAD_CMD_SPI_SCK_GPIO       18
 #define LOAD_CMD_SPI_MOSI_GPIO      19
 #define LOAD_CMD_SPI_MISO_GPIO      16
