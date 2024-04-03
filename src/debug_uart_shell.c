@@ -5,7 +5,6 @@
 //---- INTERNAL FUNCTIONS ----------------------------------------------------------------------------------------------------------------------------------------
 
 #define SHELL_CMD(command) (strcmp(args[0], (command)) == 0)
-
 #define COMPARE_ARG(argnum, str) (strcmp(args[(argnum)], (str)) == 0)
 
 // prints an error message if the user did't provide enough arguments for the command
@@ -16,7 +15,8 @@
                                     return; \
                                 }
 
-uint8_t shell_parse_args(char *input, char **args, uint8_t argc);
+uint8_t __parse_args(char *input, char **args, uint8_t argc);
+uint32_t __parse_hex_string(char *string);
 
 //---- FUNCTIONS -------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -44,14 +44,11 @@ void shell_update(char *buffer) {
     while ((buffer[0] <= ' ') && (buffer[0] != '\0')) buffer++;
 
     char *args[5];
-    uint8_t argc = shell_parse_args(buffer, args, 5);
+    uint8_t argc = __parse_args(buffer, args, 5);
 
     //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
-    if (SHELL_CMD("ahoj")) {
-
-        debug_print("zdar jak sviňa\n");
-    }
+    if (SHELL_CMD("ahoj")) debug_print("zdar jak sviňa\n");
 
     //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
@@ -77,6 +74,8 @@ void shell_update(char *buffer) {
     // resets the processor
     else if (SHELL_CMD("reboot")) {
 
+        debug_print("restarting..\n");
+        kernel_sleep_ms(200);
         NVIC_SystemReset();
     }
 
@@ -168,7 +167,7 @@ void shell_update(char *buffer) {
 
 // separates an input string into a command and arguments all separated by spaces; arguments with spaces are possible by using quotation marks
 // caution: the original string is modified by the function; the function inserts null-terminators after each argument and returns pointers to the arguments in the original string
-uint8_t shell_parse_args(char *input, char **args, uint8_t argc) {
+uint8_t __parse_args(char *input, char **args, uint8_t argc) {
 
     uint8_t  current_arg = 0;                       // index of current argument
     bool     parsing = false;                       // currently parsing an argument, not looking for a beginning of a new argument
@@ -207,6 +206,23 @@ uint8_t shell_parse_args(char *input, char **args, uint8_t argc) {
     *input = '\0';
 
     return (current_arg);
+}
+
+//- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
+// converts a string containing a hexadecimal number to an unsigned integer
+uint32_t __parse_hex_string(char *string) {
+
+    uint32_t result = 0;
+
+    for (int i = 0; string[i] != '\0'; ++i) {
+        
+        if      (string[i] >= '0' && string[i] <= '9') result = result * 16 + string[i] - '0';
+        else if (string[i] >= 'a' && string[i] <= 'f') result = result * 16 + 10 + string[i] - 'a';
+        else if (string[i] >= 'A' && string[i] <= 'F') result = result * 16 + 10 + string[i] - 'A';
+    }
+
+    return result;
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------------------------------------
