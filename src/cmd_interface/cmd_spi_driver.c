@@ -25,8 +25,8 @@ void cmd_driver_init(void) {
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
 //dodelat
-// reads one message from the write command buffer; callee should read the cmd_has_data() flag first; returns true if the checksum of the message is correct
-uint16_t cmd_read(uint8_t address) {
+// reads one message from the write command buffer; callee should read the cmd_has_data() flag first
+uint16_t cmd_read(uint8_t address, bool *checksum_ok_flag) {
 
     if (!cmd_address_valid(address)) return 0;
 
@@ -49,6 +49,7 @@ uint16_t cmd_read(uint8_t address) {
     uint8_t checksum = spi_read(LOAD_CMD_SPI);
 
     uint8_t correct_checksum = __calculate_checksum(address | (CMD_READ_BIT >> 24), (data_high << 8) | data_low);
+    *checksum_ok_flag = (checksum == correct_checksum);
 
     return ((data_high << 8) | data_low);
 }

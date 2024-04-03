@@ -7,6 +7,7 @@ extern const uint8_t bitmap_ball_16x16[];
 extern const uint8_t bitmap_onsemi_logo_92x16[];
 extern const uint8_t bitmap_vut_logo_32x32[];
 extern const uint8_t bitmap_vut_logo_invert_32x32[];
+extern const uint8_t bitmap_sad_emoji_32x32[];
 extern const uint8_t bitmap_temp_icon0_9x8[];
 extern const uint8_t bitmap_temp_icon1_9x8[];
 extern const uint8_t bitmap_bug_16x18[];

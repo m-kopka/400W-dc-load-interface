@@ -23,6 +23,8 @@ void gui_task(void) {
 
     display_init();
 
+    kernel_sleep_ms(500);
+
     if (!load_get_ready()) {
 
         display_draw_bitmap(bitmap_onsemi_logo_92x16, 18, 16);
@@ -31,17 +33,58 @@ void gui_task(void) {
         display_render_frame();
     }
 
-    while (!load_get_ready()) kernel_yield();
+    while (!load_get_ready()) {
+
+        if (kernel_get_time_ms() > 5000) {
+
+            display_flush_frame_buffer();
+            display_draw_bitmap(bitmap_sad_emoji_32x32, 8, 8);
+            display_draw_string("ERROR", font_6x8, 48, 8, 0);
+            display_draw_string("Load not", font_6x8, 48, 24, 0);
+            display_draw_string("responding", font_6x8, 48, 32, 0);
+
+            uint8_t cursor = 28;
+            display_draw_string("retrying ", font_6x8, cursor, 56, &cursor);
+
+            kernel_time_t time = kernel_get_time_ms();
+            uint8_t state = (time & (0x3 << 8)) >> 8;
+            display_draw_string(".", font_6x8, cursor + (3 * state), 56, 0);
+            
+            display_render_frame();
+        }
+        
+        kernel_yield();
+    }
 
     while (1) {
 
         bool load_enabled = load_get_enable();
+        load_fault_t fault_register = load_get_faults();
         uint32_t load_voltage_mv = load_get_voltage_mv();
         uint32_t load_current_ma = load_get_total_current_ma();
         uint32_t load_power_mw = load_voltage_mv * load_current_ma / 1000;
         uint8_t load_temp = load_get_temp();
 
         uint16_t iset_ma = load_get_cc_level_ma();
+
+        uint16_t total_mah = load_get_total_mah();
+        uint16_t total_mwh = load_get_total_mwh();
+
+        uint32_t seconds = load_get_ena_time();
+        uint32_t minutes = 0;
+        uint32_t hours = 0;
+
+        while (seconds >= 60) {
+
+            seconds -= 60;
+            minutes++;
+        }
+
+        while (minutes >= 60) {
+
+            minutes -= 60;
+            hours++;
+        }
 
         keypad_set_led(load_enabled);
         
@@ -56,19 +99,76 @@ void gui_task(void) {
 
         if (encoder_delta != 0) {
 
-            iset_ma += 100 * encoder_delta;
-            if (iset_ma < 100) iset_ma = 100;
-            if (iset_ma > 40000) iset_ma = 40000;
+            int16_t new_current = iset_ma + 100 * encoder_delta;
+            if (new_current < 000) iset_ma = 0;
+            if (new_current > 50000) iset_ma = 50000;
 
-            load_set_cc_level(iset_ma);
+            load_set_cc_level(new_current);
         }
 
         display_flush_frame_buffer();
 
-        display_draw_string("00:00:00\n", font_6x8, 0, 0, 0);
-        display_draw_string("0000mAh\n", font_6x8, 0, 8, 0);
+        uint8_t cursor_pos = 0;
 
-        uint8_t cursor_pos = 104;
+        if (hours > 0) {
+
+            display_draw_int(hours, font_6x8, cursor_pos, 0, &cursor_pos);
+            display_draw_char(':', font_6x8, cursor_pos, 0, &cursor_pos);
+        }
+
+        display_draw_int(minutes, font_6x8, cursor_pos, 0, &cursor_pos);
+        display_draw_char(':', font_6x8, cursor_pos, 0, &cursor_pos);
+
+        if (seconds < 10) display_draw_char('0', font_6x8, cursor_pos, 0, &cursor_pos);
+        display_draw_int(seconds, font_6x8, cursor_pos, 0, &cursor_pos);
+
+        cursor_pos = 0;
+        display_draw_int(total_mah, font_6x8, cursor_pos, 8, &cursor_pos);
+        display_draw_string("mAh", font_6x8, cursor_pos, 8, &cursor_pos);
+
+        cursor_pos = 0;
+        if (total_mwh < 1000) {
+
+            display_draw_int(total_mwh, font_6x8, cursor_pos, 16, &cursor_pos);
+            display_draw_string("mWh", font_6x8, cursor_pos, 16, &cursor_pos);
+        
+        } else if (total_mwh < 10000) {
+
+            gui_print_decimal(total_mwh, font_6x8, cursor_pos, 16, 2, &cursor_pos);
+            display_draw_string("Wh", font_6x8, cursor_pos, 16, &cursor_pos);
+
+        } else if (total_mwh < 10000) {
+
+            gui_print_decimal(total_mwh, font_6x8, cursor_pos, 16, 1, &cursor_pos);
+            display_draw_string("Wh", font_6x8, cursor_pos, 16, &cursor_pos);
+        } else {
+
+            display_draw_int(total_mwh / 1000, font_6x8, cursor_pos, 16, &cursor_pos);
+            display_draw_string("Wh", font_6x8, cursor_pos, 16, &cursor_pos);
+        }
+
+        cursor_pos = 0;
+        if (fault_register & LOAD_FAULT_COM) display_draw_string("COM ", font_6x8, cursor_pos, 24, &cursor_pos);
+        if (fault_register & LOAD_FAULT_REG) display_draw_string("REG ", font_6x8, cursor_pos, 24, &cursor_pos);
+        if (fault_register & LOAD_FAULT_OTP) display_draw_string("OTP ", font_6x8, cursor_pos, 24, &cursor_pos);
+        if (fault_register & LOAD_FAULT_TEMP_L) display_draw_string("TMPL ", font_6x8, cursor_pos, 24, &cursor_pos);
+        if (fault_register & LOAD_FAULT_TEMP_R) display_draw_string("TMPR ", font_6x8, cursor_pos, 24, &cursor_pos);
+        if (fault_register & LOAD_FAULT_FAN1) display_draw_string("FAN1 ", font_6x8, cursor_pos, 24, &cursor_pos);
+        if (fault_register & LOAD_FAULT_FAN2) display_draw_string("FAN2 ", font_6x8, cursor_pos, 24, &cursor_pos);
+        if (fault_register & LOAD_FAULT_OCP) display_draw_string("OCP ", font_6x8, cursor_pos, 24, &cursor_pos);
+        if (fault_register & LOAD_FAULT_OPP) display_draw_string("OPP ", font_6x8, cursor_pos, 24, &cursor_pos);
+        if (fault_register & LOAD_FAULT_FUSE_L1) display_draw_string("FL1 ", font_6x8, cursor_pos, 24, &cursor_pos);
+        if (fault_register & LOAD_FAULT_FUSE_L2) display_draw_string("FL2 ", font_6x8, cursor_pos, 24, &cursor_pos);
+        if (fault_register & LOAD_FAULT_FUSE_R1) display_draw_string("FR1 ", font_6x8, cursor_pos, 24, &cursor_pos);
+        if (fault_register & LOAD_FAULT_FUSE_R2) display_draw_string("FR2 ", font_6x8, cursor_pos, 24, &cursor_pos);
+        if (fault_register & LOAD_FAULT_EXTERNAL) display_draw_string("EXT ", font_6x8, cursor_pos, 24, &cursor_pos);
+
+        if (load_get_vsensrc()) display_draw_string("REM", font_6x8, 48, 0, 0);
+        else display_draw_string("INT", font_6x8, 48, 0, 0);
+
+        if (load_get_not_in_reg()) display_draw_string("REG!", font_6x8, 48, 8, 0);
+
+        cursor_pos = 104;
         if (load_temp < 10) display_draw_char(' ', font_6x8, cursor_pos, 0, &cursor_pos);
         display_draw_int(load_temp, font_6x8, cursor_pos, 0, &cursor_pos);
         display_draw_string("\'C", font_6x8, cursor_pos, 0, &cursor_pos);

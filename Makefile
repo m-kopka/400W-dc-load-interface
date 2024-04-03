@@ -31,7 +31,7 @@ OPENOCD_INTERFACE = interface/picoprobe.cfg
 OPENOCD_TARGET    = target/rp2040.cfg
 
 # optimization flag
-OPT = s
+OPT = 3
 
 # compiler flags
 CFLAGS = -Wall -Wno-unused-function -Wno-unused-but-set-variable -Wno-unused-variable -mcpu=$(CPU) -mthumb -std=gnu11 -pipe -O$(OPT) -ggdb -fno-builtin -nodefaultlibs -nostartfiles $(foreach D,$(INC_DIRS), -I$(D)) -MP -MD

@@ -2,6 +2,7 @@
 #define _LOAD_H_
 
 #include "common_defs.h"
+#include "cmd_interface/cmd_spi_driver.h"
 
 void load_task(void);
 
@@ -10,6 +11,18 @@ bool load_get_ready(void);
 void load_set_enable(bool enabled);
 
 bool load_get_enable(void);
+
+load_fault_t load_get_faults(void);
+
+bool load_get_vsensrc(void);
+
+bool load_get_not_in_reg(void);
+
+uint16_t load_get_ena_time(void);
+
+uint16_t load_get_total_mah(void);
+
+uint16_t load_get_total_mwh(void);
 
 uint32_t load_get_cc_level_ma(void);
 
