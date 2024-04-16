@@ -24,27 +24,27 @@ void keypad_buttons_task(void) {
 
     uint8_t key_debounce_states[7] = {0};
 
-    gpio_set_dir(KEY0_GPIO, GPIO_DIR_INPUT);
-    gpio_set_pull(KEY0_GPIO, GPIO_PULLUP);
-    gpio_set_dir(KEY1_GPIO, GPIO_DIR_INPUT);
-    gpio_set_pull(KEY1_GPIO, GPIO_PULLUP);
-    gpio_set_dir(KEY2_GPIO, GPIO_DIR_INPUT);
-    gpio_set_pull(KEY2_GPIO, GPIO_PULLUP);
-    gpio_set_dir(KEY3_GPIO, GPIO_DIR_INPUT);
-    gpio_set_pull(KEY3_GPIO, GPIO_PULLUP);
-    gpio_set_dir(KEY4_GPIO, GPIO_DIR_INPUT);
-    gpio_set_pull(KEY4_GPIO, GPIO_PULLUP);
-    gpio_set_dir(KEY5_GPIO, GPIO_DIR_INPUT);
-    gpio_set_pull(KEY5_GPIO, GPIO_PULLUP);
-    gpio_set_dir(KEY6_GPIO, GPIO_DIR_INPUT);
-    gpio_set_pull(KEY6_GPIO, GPIO_PULLUP);
+    gpio_set_dir(KEY_ENCODER_GPIO, GPIO_DIR_INPUT);
+    gpio_set_pull(KEY_ENCODER_GPIO, GPIO_PULLUP);
+    gpio_set_dir(KEY_MODE_GPIO, GPIO_DIR_INPUT);
+    gpio_set_pull(KEY_MODE_GPIO, GPIO_PULLUP);
+    gpio_set_dir(KEY_SET_GPIO, GPIO_DIR_INPUT);
+    gpio_set_pull(KEY_SET_GPIO, GPIO_PULLUP);
+    gpio_set_dir(KEY_SEQ_GPIO, GPIO_DIR_INPUT);
+    gpio_set_pull(KEY_SEQ_GPIO, GPIO_PULLUP);
+    gpio_set_dir(KEY_SEQ_EN_GPIO, GPIO_DIR_INPUT);
+    gpio_set_pull(KEY_SEQ_EN_GPIO, GPIO_PULLUP);
+    gpio_set_dir(KEY_MENU_GPIO, GPIO_DIR_INPUT);
+    gpio_set_pull(KEY_MENU_GPIO, GPIO_PULLUP);
+    gpio_set_dir(KEY_EN_GPIO, GPIO_DIR_INPUT);
+    gpio_set_pull(KEY_EN_GPIO, GPIO_PULLUP);
 
-    /*pwm_init();
+    pwm_init();
     pwm_set_resolution(pwm_gpio_to_slice(KEY_BACKLIGHT_LED_GPIO), 12);
     pwm_set_frequency(pwm_gpio_to_slice(KEY_BACKLIGHT_LED_GPIO), 1000);
     keypad_set_led(false);
     gpio_set_function(KEY_BACKLIGHT_LED_GPIO, GPIO_FUNC_PWM);
-    pwm_set_enable(pwm_gpio_to_slice(KEY_BACKLIGHT_LED_GPIO), true);*/
+    pwm_set_enable(pwm_gpio_to_slice(KEY_BACKLIGHT_LED_GPIO), true);
 
     gpio_set_dir(ENCODER_A_GPIO, GPIO_DIR_INPUT);
     gpio_set_dir(ENCODER_B_GPIO, GPIO_DIR_INPUT);
@@ -53,13 +53,13 @@ void keypad_buttons_task(void) {
     while (1) {
 
         // shift in current key states
-        key_debounce_states[0] = (key_debounce_states[0] << 1) | !gpio_get(KEY0_GPIO);
-        key_debounce_states[1] = (key_debounce_states[1] << 1) | !gpio_get(KEY1_GPIO);
-        key_debounce_states[2] = (key_debounce_states[2] << 1) | !gpio_get(KEY2_GPIO);
-        key_debounce_states[3] = (key_debounce_states[3] << 1) | !gpio_get(KEY3_GPIO);
-        key_debounce_states[4] = (key_debounce_states[4] << 1) | !gpio_get(KEY4_GPIO);
-        key_debounce_states[5] = (key_debounce_states[5] << 1) | !gpio_get(KEY5_GPIO);
-        key_debounce_states[6] = (key_debounce_states[6] << 1) | !gpio_get(KEY6_GPIO);
+        key_debounce_states[0] = (key_debounce_states[0] << 1) | !gpio_get(KEY_ENCODER_GPIO);
+        key_debounce_states[1] = (key_debounce_states[1] << 1) | !gpio_get(KEY_MODE_GPIO);
+        key_debounce_states[2] = (key_debounce_states[2] << 1) | !gpio_get(KEY_SET_GPIO);
+        key_debounce_states[3] = (key_debounce_states[3] << 1) | !gpio_get(KEY_SEQ_GPIO);
+        key_debounce_states[4] = (key_debounce_states[4] << 1) | !gpio_get(KEY_SEQ_EN_GPIO);
+        key_debounce_states[5] = (key_debounce_states[5] << 1) | !gpio_get(KEY_MENU_GPIO);
+        key_debounce_states[6] = (key_debounce_states[6] << 1) | !gpio_get(KEY_EN_GPIO);
 
         for (uint8_t key = 0; key < KEY_COUNT; key++) {
 
@@ -86,7 +86,7 @@ void keypad_buttons_task(void) {
 //---- FUNCTIONS -------------------------------------------------------------------------------------------------------------------------------------------------
 
 // returns key state. If do_once flag is used, function returns true only first time, key press is registered
-bool keypad_is_pressed(uint8_t key, bool do_once) {
+bool keypad_is_pressed(enum key_t key, bool do_once) {
 
     if (get_key_state(key)) {
 
@@ -103,7 +103,7 @@ bool keypad_is_pressed(uint8_t key, bool do_once) {
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
 // returns key hold time [ms]
-uint32_t keypad_get_hold_time(uint8_t key) {
+uint32_t keypad_get_hold_time(enum key_t key) {
 
     if (!keypad_is_pressed(key, false)) return 0;
     else return (kernel_get_time_ms() - key_press_time_ms[key]);
@@ -112,7 +112,7 @@ uint32_t keypad_get_hold_time(uint8_t key) {
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
 // returns true if key is pressed and was held for specified ammount of time
-bool keypad_is_pressed_for_ms(uint8_t key, uint32_t time, bool do_once) {
+bool keypad_is_pressed_for_ms(enum key_t key, uint32_t time, bool do_once) {
 
     if ((keypad_get_hold_time(key) >= time) && keypad_is_pressed(key, do_once)) return true;
     else return false;

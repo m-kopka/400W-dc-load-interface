@@ -15,5 +15,9 @@ extern const uint8_t bitmap_bug1_16x18[];
 extern const uint8_t bitmap_off_button_32x16[];
 extern const uint8_t bitmap_on_button_32x16[];
 extern const uint8_t bitmap_off_button_anim_32x16[];
+extern const uint8_t bitmap_popup_window_corner_lu_4x4[];
+extern const uint8_t bitmap_fault_otp_32x48[];
+extern const uint8_t bitmap_progress_bar_32x8[8][34];
+extern const uint8_t bitmap_mk_logo_32x24[];
 
 #endif /* _UI_BITMAPS_H_ */

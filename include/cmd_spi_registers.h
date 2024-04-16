@@ -71,11 +71,24 @@ typedef enum {
 
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
+// load mode options
+typedef enum {
+
+    LOAD_MODE_CC = 0x0,
+    LOAD_MODE_CV = 0x1,
+    LOAD_MODE_CR = 0x2,
+    LOAD_MODE_CP = 0x3
+
+} load_mode_t;
+
 // config register bits
 typedef enum {
 
+    LOAD_CONFIG_MODE0           = (1 <<  0),
+    LOAD_CONFIG_MODE1           = (1 <<  1),
+    LOAD_CONFIG_MODE            = (3 <<  0),    // load mode; 0 -> CC, 1 -> CV, 2 -> CR, 3 -> CP
     LOAD_CONFIG_VSEN_SRC        = (1 <<  4),    // 0 -> internal, 1 -> remote (this bit is ignored in write commands if the AUTO_VSEN_SRC bit is set)
-    LOAD_CONFIG_AUTO_VSEN_SRC   = (1 <<  5),    // enable automatic switching of VSEN source
+    LOAD_CONFIG_AUTO_VSEN_SRC   = (1 <<  5)     // enable automatic switching of VSEN source
     
 } load_config_t;
 

@@ -13,18 +13,18 @@
 
 //---- KEY BACKLIGHT LED -----------------------------------------------------------------------------------------------------------------------------------------
 
-#define KEY_BACKLIGHT_LED_GPIO          16
+#define KEY_BACKLIGHT_LED_GPIO          17
 #define KEY_BACKLIGHT_LED_BRIGHTNESS    4095
 
 //---- PUSH BUTTONS ----------------------------------------------------------------------------------------------------------------------------------------------
 
-#define KEY0_GPIO 3
-#define KEY1_GPIO 25
-#define KEY2_GPIO 2
-#define KEY3_GPIO 24
-#define KEY4_GPIO 14
-#define KEY5_GPIO 23
-#define KEY6_GPIO 15
+#define KEY_ENCODER_GPIO    3
+#define KEY_MODE_GPIO       25
+#define KEY_SET_GPIO        2
+#define KEY_SEQ_GPIO        20
+#define KEY_SEQ_EN_GPIO     18
+#define KEY_MENU_GPIO       19
+#define KEY_EN_GPIO         15
 #define KEY_COUNT 7
 
 //---- ROTARY ENCODER --------------------------------------------------------------------------------------------------------------------------------------------
@@ -45,14 +45,14 @@
 
 //---- LOAD CMD SPI ----------------------------------------------------------------------------------------------------------------------------------------------
 
-#define LOAD_CMD_SPI                SPI0
-#define LOAD_CMD_SPI_CS0_GPIO       17
-#define LOAD_CMD_SPI_CS1_GPIO       17
-#define LOAD_CMD_SPI_CS2_GPIO       17
-#define LOAD_CMD_SPI_CS3_GPIO       17
-#define LOAD_CMD_SPI_SCK_GPIO       18
-#define LOAD_CMD_SPI_MOSI_GPIO      19
-#define LOAD_CMD_SPI_MISO_GPIO      16
+#define LOAD_CMD_SPI                SPI1
+#define LOAD_CMD_SPI_CS0_GPIO       13
+#define LOAD_CMD_SPI_CS1_GPIO       9
+#define LOAD_CMD_SPI_CS2_GPIO       14
+#define LOAD_CMD_SPI_CS3_GPIO       8
+#define LOAD_CMD_SPI_SCK_GPIO       10
+#define LOAD_CMD_SPI_MOSI_GPIO      11
+#define LOAD_CMD_SPI_MISO_GPIO      12
 #define LOAD_CMD_SPI_FREQUENCY_HZ   128000
 
 //----------------------------------------------------------------------------------------------------------------------------------------------------------------

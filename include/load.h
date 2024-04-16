@@ -16,6 +16,8 @@ void load_set_enable(bool enabled);
 
 bool load_get_enable(void);
 
+load_mode_t load_get_mode(void);
+
 load_fault_t load_get_faults(void);
 
 bool load_get_vsensrc(void);

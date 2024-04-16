@@ -129,6 +129,8 @@ bool load_get_ready(void) {return (!!(load_register[CMD_ADDRESS_STATUS] & LOAD_S
 // returns true if the load is enabled
 bool load_get_enable(void) {return (!!(load_register[CMD_ADDRESS_STATUS] & LOAD_STATUS_ENABLED));}
 
+load_mode_t load_get_mode(void) {return (load_register[CMD_ADDRESS_CONFIG] & 0x3);}
+
 // returns current load voltage sense source
 bool load_get_vsensrc(void) {return (!!(load_register[CMD_ADDRESS_CONFIG] & LOAD_CONFIG_VSEN_SRC));}
 

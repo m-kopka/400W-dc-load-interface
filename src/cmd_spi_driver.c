@@ -7,7 +7,7 @@ static const uint8_t cmd_cs_gpio[] = {LOAD_CMD_SPI_CS0_GPIO, LOAD_CMD_SPI_CS1_GP
 
 //---- INTERNAL FUNCTIONS ----------------------------------------------------------------------------------------------------------------------------------------
 
-// calculates the checksum of a data frame
+// calculates the data frame checksum
 static inline uint8_t __calculate_checksum(uint8_t address, uint16_t data) {
 
     return (~((uint8_t)(address) ^ (uint8_t)(data & 0xff) ^ (uint8_t)((data >> 8) & 0xff)));
@@ -57,26 +57,6 @@ uint16_t cmd_read(uint8_t slot_number, uint8_t address, bool *checksum_ok_flag) 
 
     uint8_t correct_checksum = __calculate_checksum(address | (CMD_READ_BIT >> 24), (data_high << 8) | data_low);
     *checksum_ok_flag = (checksum == correct_checksum);
-
-    #if 1
-
-    if (slot_number < 2) {
-
-        *checksum_ok_flag = true;
-
-        if (address == CMD_ADDRESS_ID) return LOAD_ID_CODE;
-        else if (address == CMD_ADDRESS_STATUS) return LOAD_STATUS_READY | LOAD_STATUS_ENABLED;
-        else if (address == CMD_ADDRESS_FAULT) return 0;
-        else if (address == CMD_ADDRESS_CONFIG) return 0;
-        else if (address == CMD_ADDRESS_CC_LEVEL) return 5000;
-        else if (address == CMD_ADDRESS_VOLTAGE) return 2000;
-        else if (address == CMD_ADDRESS_CURRENT) return 5000;
-        else if (address == CMD_ADDRESS_TEMP_L) return 35;
-        else if (address == CMD_ADDRESS_TEMP_R) return 37;
-        else return 0;
-    }
-
-    #endif
 
     return ((data_high << 8) | data_low);
 }
