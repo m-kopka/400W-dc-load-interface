@@ -33,10 +33,10 @@ void cmd_driver_init(void) {
 
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
-//dodelat
-// reads one message from the write command buffer; callee should read the cmd_has_data() flag first
+// reads data from the specified load register via SPI
 uint16_t cmd_read(uint8_t slot_number, uint8_t address, bool *checksum_ok_flag) {
 
+    if (slot_number >= LOAD_CMD_SPI_SLOT_COUNT) return 0;
     if (!cmd_address_valid(address)) return 0;
 
     while (spi_rx_not_empty(LOAD_CMD_SPI)) spi_read(LOAD_CMD_SPI);
@@ -63,9 +63,10 @@ uint16_t cmd_read(uint8_t slot_number, uint8_t address, bool *checksum_ok_flag) 
 
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
-// writes data to the specified register; if the interface receives a read command on this address, this value will be transmitted to the master
+// writes data to the specified load register via SPI
 void cmd_write(uint8_t slot_number, uint8_t address, uint16_t data) {
 
+    if (slot_number >= LOAD_CMD_SPI_SLOT_COUNT) return;
     if (!cmd_address_valid(address)) return;
 
     uint8_t checksum = __calculate_checksum(address, data);		// compute checksum

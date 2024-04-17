@@ -54,6 +54,7 @@
 #define LOAD_CMD_SPI_MOSI_GPIO      11
 #define LOAD_CMD_SPI_MISO_GPIO      12
 #define LOAD_CMD_SPI_FREQUENCY_HZ   128000
+#define LOAD_CMD_SPI_SLOT_COUNT     4
 
 //----------------------------------------------------------------------------------------------------------------------------------------------------------------
 

@@ -42,7 +42,7 @@ void gui_task(void) {
             display_flush_frame_buffer();
             display_draw_bitmap(bitmap_sad_emoji_32x32, 8, 8);
             display_draw_string("ERROR", font_6x8, 48, 8, 0);
-            display_draw_string("Load not", font_6x8, 48, 24, 0);
+            display_draw_string("Module not", font_6x8, 48, 24, 0);
             display_draw_string("responding", font_6x8, 48, 32, 0);
 
             uint8_t cursor = 28;

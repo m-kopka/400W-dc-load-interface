@@ -25,11 +25,15 @@ typedef enum {
     CMD_ADDRESS_WD_RELOAD       = 0x0C,     // Load Watchdog Reload register (w), write 0xBABA to reload the watchdog
     CMD_ADDRESS_ENABLE          = 0x0D,     // Load Enable register (w), write 0xABCD to enable the load, write 0 to disable
     CMD_ADDRESS_CC_LEVEL        = 0x10,     // Load CC Level register (r/w)
+    CMD_ADDRESS_CV_LEVEL        = 0x11,     // Load CV Level register (r/w)
+    CMD_ADDRESS_CR_LEVEL        = 0x12,     // Load CR Level register (r/w)
+    CMD_ADDRESS_CP_LEVEL        = 0x13,     // Load CP Level register (r/w)
     CMD_ADDRESS_DISCH_LEVEL     = 0x14,     // Load Discharge Voltage register (r/w)
     CMD_ADDRESS_AVLBL_CURRENT   = 0x1E,     // Load Available Current register (r)
     CMD_ADDRESS_AVLBL_POWER     = 0x1F,     // Load Available Power register (r)
     CMD_ADDRESS_VOLTAGE         = 0x20,     // Load Input Voltage register (r)
     CMD_ADDRESS_CURRENT         = 0x22,     // Load Total Current register (r)
+    CMD_ADDRESS_POWER           = 0x23,     // Load Total Power register (r)
     CMD_ADDRESS_CURRENT_L1      = 0x28,     // Load L1 Sink Current register (r)
     CMD_ADDRESS_CURRENT_L2      = 0x29,     // Load L2 Sink Current register (r)
     CMD_ADDRESS_CURRENT_R1      = 0x2A,     // Load R1 Sink Current register (r)

@@ -48,7 +48,7 @@ void shell_update(char *buffer) {
 
     //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
-    if (SHELL_CMD("ahoj")) debug_print("zdar jak sviňa\n");
+    if (SHELL_CMD("ahoj")) debug_print("zdar jak sviňa, su z Brna\n");
 
     //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
