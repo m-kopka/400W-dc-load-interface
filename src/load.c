@@ -1,45 +1,68 @@
 #include "load.h"
 
+//---- ENUMERATIONS ----------------------------------------------------------------------------------------------------------------------------------------------
+
+// communication state machine
 typedef enum {
 
-    LOAD_COM_STATE_GETTING_ID,
-    LOAD_COM_STATE_WAITING_FOR_READY,
-    LOAD_COM_STATE_READY
+    LOAD_COM_STATE_GETTING_ID,              // waiting for slave to respond with valid ID
+    LOAD_COM_STATE_WAITING_FOR_READY,       // waiting for slave to complete its power-up selftest
+    LOAD_COM_STATE_READY                    // slave ready, parsing data
 
 } load_communication_state_t;
 
-load_communication_state_t com_state;
-bool data_capture_started = true;
-kernel_time_t prev_watchdog_reload_time = 0;
-uint16_t load_register[CMD_REGISTER_COUNT] = {0};
-static uint8_t queue_pos = 0;
-static bool checksum_fault = false;
+//---- INTERNAL DATA ---------------------------------------------------------------------------------------------------------------------------------------------
 
+uint8_t module_count = 0;                       // number of detected slave modules
+load_communication_state_t com_state;           // current communication state machine state
+bool data_capture_started = true;               // after set reun, kernel task starts parsing data from slave. Automatically set false after parsing is done
+static bool checksum_fault = false;             // true if the slave keeps responding with invalid checksum or doesn't respond at all
+kernel_time_t prev_watchdog_reload_time = 0;    // absolute time of previous load watchdog reload. Used for reloading the watchdog in regular intervals while the load is enabled
 
+uint16_t load_register[CMD_REGISTER_COUNT] = {0};       // stores parsed data
+static uint8_t read_queue_pos = 0;                      // current position in the read queue
+
+// list of load registers to be parsed each data capture
 int8_t read_queue[] = {
 
     CMD_ADDRESS_STATUS,
     CMD_ADDRESS_FAULT,
+    CMD_ADDRESS_FAULT_MASK,
     CMD_ADDRESS_CONFIG,
     CMD_ADDRESS_CC_LEVEL,
+    CMD_ADDRESS_CV_LEVEL,
+    CMD_ADDRESS_CR_LEVEL,
+    CMD_ADDRESS_CP_LEVEL,
     CMD_ADDRESS_VOLTAGE,
     CMD_ADDRESS_CURRENT,
+    CMD_ADDRESS_POWER,
     CMD_ADDRESS_TEMP_L,
     CMD_ADDRESS_TEMP_R,
+    CMD_ADDRESS_FAN_RPM1,
+    CMD_ADDRESS_FAN_RPM2,
     CMD_ADDRESS_TOTAL_TIME_L,
+    CMD_ADDRESS_TOTAL_TIME_H,
     CMD_ADDRESS_TOTAL_MAH_L,
-    CMD_ADDRESS_TOTAL_MWH_L
+    CMD_ADDRESS_TOTAL_MAH_H,
+    CMD_ADDRESS_TOTAL_MWH_L,
+    CMD_ADDRESS_TOTAL_MWH_H,
 };
 
 //---- INTERNAL FUNCTIONS ----------------------------------------------------------------------------------------------------------------------------------------
 
+uint8_t __detect_load_modules(void);
 void __update_register(uint8_t reg_address);
+void __reload_watchdog(void);
 
 //---- FUNCTIONS -------------------------------------------------------------------------------------------------------------------------------------------------
 
+// kernel task for parsing data from slave modules and handling communication faults
 void load_task(void) {
 
     cmd_driver_init();
+
+    // check all SPI slots while no slave modules are detected
+    while (module_count == 0) module_count = __detect_load_modules();
 
     while (1) {
 
@@ -47,38 +70,53 @@ void load_task(void) {
 
         switch (com_state) {
 
+            //---- WAIT FOR VALID ID -----------------------------------------------------------------------------------------------------------------------------
+
             case LOAD_COM_STATE_GETTING_ID:
 
+                // continue if slave responded with valid ID and the checksum is correct
                 if (cmd_read(0, CMD_ADDRESS_ID, &checksum_ok) == LOAD_ID_CODE && checksum_ok) com_state = LOAD_COM_STATE_WAITING_FOR_READY;
                 break;
 
+            //---- WAIT FOR READY FLAG ---------------------------------------------------------------------------------------------------------------------------
+
             case LOAD_COM_STATE_WAITING_FOR_READY:
 
-                load_register[CMD_ADDRESS_STATUS] = cmd_read(0, CMD_ADDRESS_STATUS, &checksum_ok);
+                load_register[CMD_ADDRESS_STATUS] = cmd_read(0, CMD_ADDRESS_STATUS, &checksum_ok);      // read the status register
 
-                if (checksum_ok && load_get_ready()) com_state = LOAD_COM_STATE_READY;
+                if (checksum_ok && load_get_ready()) {
+                    
+                    load_set_fault_mask(LOAD_FAULT_ALL & ~(LOAD_FAULT_REG | LOAD_FAULT_EXTERNAL));      // set fault mask
+                    
+                    com_state = LOAD_COM_STATE_READY;                  // continue if the READY bit in the status register is set and checksum is correct
+                }
+
                 break;
+
+            //---- PARSE DATA ------------------------------------------------------------------------------------------------------------------------------------
 
             case LOAD_COM_STATE_READY:
 
-                if (load_get_enable() && kernel_get_time_since(prev_watchdog_reload_time) >= LOAD_WD_TIMEOUT_MS / 2) {
+                // reload the watchdog in regular intervals while the load is enabled
+                if (load_get_enable() && kernel_get_time_since(prev_watchdog_reload_time) >= LOAD_WD_TIMEOUT_MS / 2) __reload_watchdog();
 
-                    prev_watchdog_reload_time = kernel_get_time_ms();
-                    cmd_write(0, CMD_ADDRESS_WD_RELOAD, LOAD_WD_RELOAD_KEY);
-                }
-
+                // parse next register in the queue
                 if (data_capture_started) {
 
-                    __update_register(read_queue[queue_pos++]);
+                    // read the register and save the data if checksum is correct
+                    __update_register(read_queue[read_queue_pos++]);
 
-                    if (queue_pos == sizeof(read_queue)) {
+                    // end of read queue, capture is done
+                    if (read_queue_pos == sizeof(read_queue)) {
                         
-                        queue_pos = 0;
+                        read_queue_pos = 0;
                         data_capture_started = false;
                     }
                 }
 
                 break;
+
+            //----------------------------------------------------------------------------------------------------------------------------------------------------
         }
 
         kernel_yield();
@@ -87,85 +125,50 @@ void load_task(void) {
 
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
-void load_start_data_capture(void) {
+// returns number of populated SPI slots (only devices which responded with valid ID count)
+uint8_t load_get_module_count(void) {return module_count;}
 
-    data_capture_started = true;
-}
+// starts parsing data from the slave module
+void load_start_data_capture(void) {data_capture_started = true;}
 
-//- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+// returns true if the data parsing is done
+bool load_get_data_capture_done(void) {return !data_capture_started;}
 
-bool load_get_data_capture_done(void) {
-
-    return !data_capture_started;
-}
-
-//- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-
-// enables or disables the load
-void load_set_enable(bool enabled) {
-
-    if (enabled) {
-        
-        prev_watchdog_reload_time = kernel_get_time_ms();
-        cmd_write(0, CMD_ADDRESS_WD_RELOAD, LOAD_WD_RELOAD_KEY);
-        cmd_write(0, CMD_ADDRESS_ENABLE, LOAD_ENABLE_KEY);
-
-    } else cmd_write(0, CMD_ADDRESS_ENABLE, 0x0000);
-}
-
-//- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-
-// sets the load CC level
-void load_set_cc_level(uint16_t current_ma) {
-
-    cmd_write(0, CMD_ADDRESS_CC_LEVEL, current_ma);
-}
-
-//- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-
-// returns true if the load is ready
-bool load_get_ready(void) {return (!!(load_register[CMD_ADDRESS_STATUS] & LOAD_STATUS_READY));}
-
-// returns true if the load is enabled
-bool load_get_enable(void) {return (!!(load_register[CMD_ADDRESS_STATUS] & LOAD_STATUS_ENABLED));}
-
-load_mode_t load_get_mode(void) {return (load_register[CMD_ADDRESS_CONFIG] & 0x3);}
-
-// returns current load voltage sense source
-bool load_get_vsensrc(void) {return (!!(load_register[CMD_ADDRESS_CONFIG] & LOAD_CONFIG_VSEN_SRC));}
-
-// returns true if the load is not in regulation (measured current doesn't match CC level)
-bool load_get_not_in_reg(void) {return (!!(load_register[CMD_ADDRESS_STATUS] & LOAD_STATUS_NO_REG));}
-
-// returns load fault flags
-load_fault_t load_get_faults(void) {return load_register[CMD_ADDRESS_FAULT];}
-
-// returns load CC level [mA]
-uint32_t load_get_cc_level_ma(void) {return load_register[CMD_ADDRESS_CC_LEVEL];}
-
-// returns load input voltage [mV]
-uint32_t load_get_voltage_mv(void) {return load_register[CMD_ADDRESS_VOLTAGE] * 10;}
-
-// returns load total current [mA]
-uint32_t load_get_total_current_ma(void) {return load_register[CMD_ADDRESS_CURRENT];}
-
-// returns the load temperature
-uint8_t load_get_temp(void) {
-    
-    if (load_register[CMD_ADDRESS_TEMP_L] > load_register[CMD_ADDRESS_TEMP_R]) return (load_register[CMD_ADDRESS_TEMP_L]);
-    else return load_register[CMD_ADDRESS_TEMP_R];
-}
-
-// returns total load enable time in [s]
-uint32_t load_get_ena_time(void) {return ((load_register[CMD_ADDRESS_TOTAL_TIME_H] << 16) | load_register[CMD_ADDRESS_TOTAL_TIME_L]);}
-
-// returns total load consumed current [mAh]
-uint32_t load_get_total_mah(void) {return ((load_register[CMD_ADDRESS_TOTAL_MAH_H] << 16) | load_register[CMD_ADDRESS_TOTAL_MAH_L]);}
-
-// returns total load consumed energy [mWh]
-uint32_t load_get_total_mwh(void) {return ((load_register[CMD_ADDRESS_TOTAL_MWH_H] << 16) | load_register[CMD_ADDRESS_TOTAL_MWH_L]);}
+// retuns true if the slave keeps responding with invalid checksum or doesn't respond at all
+bool load_get_checksum_fault(void) {return checksum_fault;}
 
 //---- INTERNAL FUNCTIONS ----------------------------------------------------------------------------------------------------------------------------------------
+
+// checks all SPI slots and returns number of populated slots which respond with valid ID (slots must be populated in order from slot 0)
+uint8_t __detect_load_modules(void) {
+
+    uint8_t module_count = 0;
+
+    for (int module = 0; module < LOAD_CMD_SPI_SLOT_COUNT; module++) {
+
+        // attempt connection 4 times for each SPI slot
+        for (int attempt = 0; attempt < 4; attempt++) {
+
+            bool checksum_ok = false;
+
+            // slave returned ID and correct checksum. Load module found
+            if (cmd_read(module, CMD_ADDRESS_ID, &checksum_ok) == LOAD_ID_CODE && checksum_ok) {
+
+                module_count++;
+                break;
+            }
+
+            // slots must be populated in order. If non-populated slot was found, skip the rest.
+            if (attempt == 3) return module_count;
+
+            kernel_yield();
+        }
+    }
+
+    return module_count;
+}
+
+//- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
 // reads data from the load slave module and updates the register if checksum is ok
 // triggers a checksum fault after 16 consecutive checksum fails
@@ -177,7 +180,7 @@ void __update_register(uint8_t reg_address) {
 
     // update the register if checksum ok
     if (checksum_ok) {
-        
+
         load_register[reg_address] = value;
 
         if (checksum_fail_cumulative_counter > 0) {
@@ -194,6 +197,15 @@ void __update_register(uint8_t reg_address) {
             com_state = LOAD_COM_STATE_GETTING_ID;
         }
     }
+}
+
+//- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
+// reloads the load watchdog
+void __reload_watchdog(void) {
+
+    prev_watchdog_reload_time = kernel_get_time_ms();
+    cmd_write(0, CMD_ADDRESS_WD_RELOAD, LOAD_WD_RELOAD_KEY);
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------------------------------------
