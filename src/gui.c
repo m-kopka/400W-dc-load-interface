@@ -131,6 +131,11 @@ void gui_task(void) {
 
                 //---- HANDLE CONTROLS AND SCREEN SWITCHES -------------------------------------------------------------------------------------------------------
 
+                static uint32_t setting_increment = 0;
+                static uint32_t last_setpoint_change_time = 0;
+
+                if (setting_increment > 0 && kernel_get_time_since(last_setpoint_change_time) > 4000) setting_increment = 0;
+
                 // buttons
                 if (keypad_is_pressed(KEY_MODE, true) && !load_enabled) {
 
@@ -138,6 +143,30 @@ void gui_task(void) {
                     else if (load_mode == LOAD_MODE_CV) load_set_mode(LOAD_MODE_CR);
                     else if (load_mode == LOAD_MODE_CR) load_set_mode(LOAD_MODE_CP);
                     else                                load_set_mode(LOAD_MODE_CC);
+
+                    setting_increment = 0;
+                }
+
+                if (keypad_is_pressed(KEY_SET, true) || keypad_is_pressed(KEY_ENCODER, true)) {
+
+                    if (setting_increment == 0) {
+
+                        if (load_mode == LOAD_MODE_CC) setting_increment = 1000;
+                        if (load_mode == LOAD_MODE_CV) setting_increment = 1000;
+                        if (load_mode == LOAD_MODE_CR) setting_increment = 1000;
+                        if (load_mode == LOAD_MODE_CP) setting_increment = 10000;
+
+                    } else {
+
+                        setting_increment /= 10;
+
+                        if ((load_mode == LOAD_MODE_CC) && (setting_increment < 100)) setting_increment = 1000;
+                        if ((load_mode == LOAD_MODE_CV) && (setting_increment < 100)) setting_increment = 10000;
+                        if ((load_mode == LOAD_MODE_CR) && (setting_increment < 100)) setting_increment = 10000;
+                        if ((load_mode == LOAD_MODE_CP) && (setting_increment < 1000)) setting_increment = 10000;
+                    }
+
+                    last_setpoint_change_time = kernel_get_time_ms();
                 }
 
                 if (keypad_is_pressed(KEY_EN, true)) load_set_enable(!load_enabled);
@@ -148,11 +177,12 @@ void gui_task(void) {
 
                 if (encoder_delta != 0) {
 
-                    int16_t new_current = iset_ma + 100 * encoder_delta;
-                    if (new_current < 000) iset_ma = 0;
-                    if (new_current > 50000) iset_ma = 50000;
+                    last_setpoint_change_time = kernel_get_time_ms();
 
-                    load_set_cc_level(new_current);
+                    if      (load_mode == LOAD_MODE_CC) load_set_cc_level(iset_ma + setting_increment * encoder_delta);
+                    else if (load_mode == LOAD_MODE_CV) load_set_cv_level(vset_mv + setting_increment * encoder_delta);
+                    else if (load_mode == LOAD_MODE_CR) load_set_cr_level(rset_mr + setting_increment * encoder_delta);
+                    else if (load_mode == LOAD_MODE_CP) load_set_cp_level(pset_mw + setting_increment * encoder_delta);
                 }
 
                 //---- RENDER UI ---------------------------------------------------------------------------------------------------------------------------------
@@ -173,9 +203,7 @@ void gui_task(void) {
                 display_draw_int(seconds, font_6x8, cursor_pos, 0, &cursor_pos);
 
                 // total mAh
-                cursor_pos = 0;
-                display_draw_int(total_mah, font_6x8, cursor_pos, 8, &cursor_pos);
-                display_draw_string("mAh", font_6x8, cursor_pos, 8, &cursor_pos);
+                __print_decimal_with_unit(total_mah * 1000, "mAh", font_6x8, 0, 8, 0, 0);
 
                 // total mWh
                 if (total_mwh < 1000)           __print_decimal_with_unit(total_mwh * 1000, "mWh", font_6x8, 0, 16, 0, 0);      // 999mWh
@@ -189,34 +217,111 @@ void gui_task(void) {
                 if (load_get_not_in_reg()) display_draw_string("REG!", font_6x8, 48, 0, 0);
 
                 // temperature
-                display_draw_bitmap(bitmap_temp_icon0_9x8, 92, 0);
+                display_draw_bitmap(bitmap_temp_icon_9x8[!!(kernel_get_time_ms() & (1 << 9)) & load_enabled], 92, 0);
                 
                 cursor_pos = 104;
                 if (load_temp < 10) display_draw_char(' ', font_6x8, cursor_pos, 0, &cursor_pos);
                 display_draw_int(load_temp, font_6x8, cursor_pos, 0, &cursor_pos);
                 display_draw_string("\'C", font_6x8, cursor_pos, 0, &cursor_pos);
 
+                //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
                 // load mode and setpoint
                 if (load_mode == LOAD_MODE_CC) {
                         
                     display_draw_string("CC", font_6x8, 0, 56, 0);
-                    __print_decimal_with_unit(iset_ma, "A", font_6x8, 0, 48, 2, 0);
+
+                    // draw cursor icon
+                    if (setting_increment != 0) {
+
+                        uint8_t arrow_pos = 0;
+
+                        if (setting_increment == 100) arrow_pos = 10;
+                        if (setting_increment == 1000) arrow_pos = 0;
+
+                        if (iset_ma >= 10000) arrow_pos += 6;
+
+                        display_draw_bitmap(bitmap_cursor_arrow_6x8, arrow_pos, 40);
+                    }
+
+                    __print_decimal_with_unit(iset_ma, "A", font_6x8, 0, 48, 1, 0);
+
+                //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
                 } else if (load_mode == LOAD_MODE_CV) {
                     
                     display_draw_string("CV", font_6x8, 0, 56, 0);
-                    __print_decimal_with_unit(vset_mv, "V", font_6x8, 0, 48, 1, 0);
+
+                    // draw cursor icon
+                    if (setting_increment != 0) {
+
+                        uint8_t arrow_pos = 0;
+
+                        if (setting_increment == 100) arrow_pos = 16;
+                        if (setting_increment == 1000) arrow_pos = 6;
+                        if (setting_increment == 10000) arrow_pos = 0;
+
+                        if (vset_mv < 10000 && setting_increment < 10000) arrow_pos -= 6;
+
+                        display_draw_bitmap(bitmap_cursor_arrow_6x8, arrow_pos, 40);
+                    }
+
+                    uint8_t cursor_pos = 0;
+                    if (setting_increment >= 10000 && vset_mv < 10000) display_draw_char(' ', font_6x8, 0, 48, &cursor_pos);
+                    __print_decimal_with_unit(vset_mv, "V", font_6x8, cursor_pos, 48, 1, &cursor_pos);
+
+                //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
                 } else if (load_mode == LOAD_MODE_CR) {
                     
                     display_draw_string("CR", font_6x8, 0, 56, 0);
-                    __print_decimal_with_unit(rset_mr, "Ohm", font_6x8, 0, 48, 2, 0);
+
+                    // draw cursor icon
+                    if (setting_increment != 0) {
+
+                        uint8_t arrow_pos = 0;
+
+                        if (setting_increment == 100) arrow_pos = 22;
+                        if (setting_increment == 1000) arrow_pos = 12;
+                        if (setting_increment == 10000) arrow_pos = 6;
+
+                        if (rset_mr < 100000) arrow_pos -= 6;
+                        if (rset_mr < 10000 && arrow_pos != 0) arrow_pos -= 6;
+
+                        display_draw_bitmap(bitmap_cursor_arrow_6x8, arrow_pos, 40);
+                    }
+
+                    uint8_t cursor_pos = 0;
+                    if (setting_increment >= 10000 && rset_mr < 10000) display_draw_char(' ', font_6x8, 0, 48, &cursor_pos);
+                    __print_decimal(rset_mr, font_6x8, cursor_pos, 48, 1, &cursor_pos);
+                    display_draw_bitmap(bitmap_omega_6x8, cursor_pos, 48);
+
+                //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
                 } else if (load_mode == LOAD_MODE_CP) {
                     
                     display_draw_string("CP", font_6x8, 0, 56, 0);
-                    __print_decimal_with_unit(pset_mw, "W", font_6x8, 0, 48, 0, 0);
+
+                    // draw cursor icon
+                    if (setting_increment != 0) {
+
+                        uint8_t arrow_pos = 0;
+
+                        if (setting_increment == 1000) arrow_pos = 12;
+                        if (setting_increment == 10000) arrow_pos = 6;
+
+                        if (pset_mw < 100000) arrow_pos -= 6;
+                        if (pset_mw < 10000 && setting_increment < 10000) arrow_pos -= 6;
+
+                        display_draw_bitmap(bitmap_cursor_arrow_6x8, arrow_pos, 40);
+                    }
+
+                    uint8_t cursor_pos = 0;
+                    if (setting_increment >= 10000 && pset_mw < 10000) display_draw_char(' ', font_6x8, 0, 48, &cursor_pos);
+                    __print_decimal_with_unit(pset_mw, "W", font_6x8, cursor_pos, 48, 0, &cursor_pos);
                 }
+
+                //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
                 // total current
                 cursor_pos = 44;
@@ -282,13 +387,13 @@ void gui_task(void) {
 
                 if      (current_fault == LOAD_FAULT_COM) __print_error_window(bitmap_sad_emoji_32x32, "LOAD FAULT", "Interface", "panel", "disconnected");
                 else if (current_fault == LOAD_FAULT_REG) __print_error_window(bitmap_sad_emoji_32x32, "LOAD FAULT", "Regulator", "in saturation", "");
-                else if (current_fault == LOAD_FAULT_OTP) __print_error_window(bitmap_fault_otp_32x48, "LOAD FAULT", "Overtemperature", "protection", "triggered");
+                else if (current_fault == LOAD_FAULT_OTP) __print_error_window(bitmap_fault_transistor_32x48, "LOAD FAULT", "Overtemperature", "protection", "triggered");
                 else if (current_fault == LOAD_FAULT_TEMP_L) __print_error_window(bitmap_sad_emoji_32x32, "LOAD FAULT", "Left temp", "sensor not", "working");
                 else if (current_fault == LOAD_FAULT_TEMP_R) __print_error_window(bitmap_sad_emoji_32x32, "LOAD FAULT", "Right temp", "sensor not", "working");
                 else if (current_fault == LOAD_FAULT_FAN1) __print_error_window(bitmap_sad_emoji_32x32, "LOAD FAULT", "Bottom fan", "not spinning", "");
                 else if (current_fault == LOAD_FAULT_FAN2) __print_error_window(bitmap_sad_emoji_32x32, "LOAD FAULT", "Top fan", "not spinning", "");
                 else if (current_fault == LOAD_FAULT_OCP) __print_error_window(bitmap_sad_emoji_32x32, "LOAD FAULT", "Overcurrent", "protection", "triggered");
-                else if (current_fault == LOAD_FAULT_OPP) __print_error_window(bitmap_fault_otp_32x48, "LOAD FAULT", "Overpower", "protection", "triggered");
+                else if (current_fault == LOAD_FAULT_OPP) __print_error_window(bitmap_fault_transistor_32x48, "LOAD FAULT", "Overpower", "protection", "triggered");
                 else if (current_fault == LOAD_FAULT_FUSE_L1) __print_error_window(bitmap_sad_emoji_32x32, "LOAD FAULT", "L1 sink", "no current", "check fuse");
                 else if (current_fault == LOAD_FAULT_FUSE_L2) __print_error_window(bitmap_sad_emoji_32x32, "LOAD FAULT", "L2 sink", "no current", "check fuse");
                 else if (current_fault == LOAD_FAULT_FUSE_R1) __print_error_window(bitmap_sad_emoji_32x32, "LOAD FAULT", "R1 sink", "no current", "check fuse");
@@ -314,7 +419,7 @@ void gui_task(void) {
 
         if (bug_enabled) {
 
-            display_draw_bitmap_not_aligned((kernel_get_time_ms() & (1 << 8)) ? bitmap_bug_16x18 : bitmap_bug1_16x18, bug_pos_x, bug_pos_y, true);
+            display_draw_bitmap_not_aligned(bitmap_bug_16x18[!!(kernel_get_time_ms() & (1 << 8))], bug_pos_x, bug_pos_y, true);      // ANIMATED
 
             bug_pos_x += (bug_dir_x) ? 1 : -1;
             bug_pos_y += (bug_dir_y) ? 1 : -1;

@@ -45,7 +45,7 @@ uint32_t load_get_cc_level_ma(void) {return load_register[CMD_ADDRESS_CC_LEVEL];
 uint32_t load_get_cv_level_mv(void) {return load_register[CMD_ADDRESS_CV_LEVEL] * 10;}
 
 // returns load CR level [mOhm]
-uint32_t load_get_cr_level_mr(void) {return load_register[CMD_ADDRESS_CR_LEVEL];}
+uint32_t load_get_cr_level_mr(void) {return load_register[CMD_ADDRESS_CR_LEVEL] * 10;}
 
 // returns load CP level [mW]
 uint32_t load_get_cp_level_mw(void) {return load_register[CMD_ADDRESS_CP_LEVEL] * 100;}

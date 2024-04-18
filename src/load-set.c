@@ -6,6 +6,7 @@ extern uint16_t load_register[CMD_REGISTER_COUNT];
 
 //---- INTERNAL FUNCTIONS ----------------------------------------------------------------------------------------------------------------------------------------
 
+void __update_register(uint8_t reg_address);
 void __reload_watchdog(void);
 
 //---- FUNCTIONS -------------------------------------------------------------------------------------------------------------------------------------------------
@@ -29,6 +30,8 @@ void load_set_fault_mask(load_fault_t mask) {
 // sets the load mode (CC, CV, CR or CP)
 void load_set_mode(load_mode_t mode) {
 
+    __update_register(CMD_ADDRESS_CONFIG);
+    
     uint16_t config_reg = load_register[CMD_ADDRESS_CONFIG];        // get current config register value
     config_reg &= ~0x3;                                             // clear mode bits
     config_reg |= (mode & 0x3);                                     // set new mode bits
@@ -79,7 +82,7 @@ void load_set_cr_level(uint32_t resistance_mr) {
     if (resistance_mr < LOAD_MIN_CR_LEVEL_MR) return;
     if (resistance_mr > LOAD_MAX_CR_LEVEL_MR) return;
 
-    cmd_write(0, CMD_ADDRESS_CR_LEVEL, resistance_mr);
+    cmd_write(0, CMD_ADDRESS_CR_LEVEL, resistance_mr / 10);
 }
 
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -98,6 +101,8 @@ void load_set_cp_level(uint32_t power_mw) {
 // enables or disables voltage remote sensing
 void load_set_remote_sense(bool enabled) {
 
+    __update_register(CMD_ADDRESS_CONFIG);
+
     uint16_t config_reg = load_register[CMD_ADDRESS_CONFIG];        // get current config register value
     
     if (enabled) config_reg |= LOAD_CONFIG_VSEN_SRC;
@@ -110,6 +115,8 @@ void load_set_remote_sense(bool enabled) {
 
 // enables or disables automatic voltage sense source switching
 void load_set_auto_vsensrc(bool enabled) {
+
+    __update_register(CMD_ADDRESS_CONFIG);
 
     uint16_t config_reg = load_register[CMD_ADDRESS_CONFIG];        // get current config register value
     
