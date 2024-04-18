@@ -87,6 +87,7 @@ void load_task(void) {
                 if (checksum_ok && load_get_ready()) {
                     
                     load_set_fault_mask(LOAD_FAULT_ALL & ~(LOAD_FAULT_REG | LOAD_FAULT_EXTERNAL));      // set fault mask
+                    load_set_auto_vsensrc(true);                                                        // enable automatic vsen source switching
                     
                     com_state = LOAD_COM_STATE_READY;                  // continue if the READY bit in the status register is set and checksum is correct
                 }

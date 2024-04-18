@@ -41,7 +41,25 @@ void load_set_mode(load_mode_t mode);
 void load_set_enable(bool enabled);
 
 // sets the load CC level
-void load_set_cc_level(uint16_t current_ma);
+void load_set_cc_level(uint32_t current_ma);
+
+// sets the load CV level
+void load_set_cv_level(uint32_t voltage_mv);
+
+// sets the load CR level
+void load_set_cr_level(uint32_t resistance_mr);
+
+// sets the load CP level
+void load_set_cp_level(uint32_t power_mw);
+
+// enables or disables voltage remote sensing
+void load_set_remote_sense(bool enabled);
+
+// enables or disables automatic voltage sense source switching
+void load_set_auto_vsensrc(bool enabled);
+
+// sets the auto disable voltage level
+void load_set_discharge_voltage(uint32_t voltage_mv);
 
 //---- LOAD GET FUNCTIONS ----------------------------------------------------------------------------------------------------------------------------------------
 
