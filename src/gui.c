@@ -4,6 +4,9 @@
 #include "load.h"
 #include "gui-bitmaps.h"
 
+//---- ENUMERATIONS ----------------------------------------------------------------------------------------------------------------------------------------------
+
+// gui screens
 typedef enum {
 
     SCREEN_MAIN,
@@ -14,7 +17,7 @@ typedef enum {
 
 //---- INTERNAL FUNCTIONS ----------------------------------------------------------------------------------------------------------------------------------------
 
-void __print_error_window(const uint8_t *icon, char *line1, char *line2);
+void __print_error_window(const uint8_t *icon, char *header, char *line1, char *line2, char *line3);
 void __print_decimal_with_unit(int value, char *unit, const uint8_t *font, uint8_t x_pos, uint8_t y_pos, uint8_t dec_places, uint8_t *cursor);
 void __print_decimal(int value, const uint8_t *font, uint8_t x_pos, uint8_t y_pos, uint8_t dec_places, uint8_t *cursor);
 
@@ -41,6 +44,8 @@ void gui_task(void) {
 
     while (!load_get_ready()) {
 
+        display_flush_frame_buffer();
+
         display_draw_bitmap(bitmap_mk_logo_32x24, 8, 8);
         display_draw_string("400W DC Load", font_6x8, 48, 8, 0);
         display_draw_string("Martin Kopka 2024", font_6x8, 13, 32, 0);
@@ -49,11 +54,11 @@ void gui_task(void) {
             
             display_draw_bitmap(bitmap_progress_bar_32x8[(kernel_get_time_ms() >> 8) & 0x7], 48, 48);
 
-            if (kernel_get_time_ms() > 5000) __print_error_window(bitmap_sad_emoji_32x32, "Load stuck", "in selftest");
+            if (kernel_get_time_ms() > 5000) __print_error_window(bitmap_sad_emoji_32x32, "ERROR", "Load stuck", "in selftest", "");
 
         } else if (kernel_get_time_ms() > 3000) {
 
-            __print_error_window(bitmap_sad_emoji_32x32, "No load", "modules found");
+            __print_error_window(bitmap_sad_emoji_32x32, "ERROR", "No load", "modules found", "");
             display_draw_string("retrying", font_6x8, 28, 56, 0);
 
             uint8_t state = (kernel_get_time_ms() & (0x3 << 8)) >> 8;
@@ -79,6 +84,8 @@ void gui_task(void) {
             
             kernel_yield();
         }
+
+        if (load_get_fault() && current_screen != SCREEN_COM_FAULT) current_screen = SCREEN_FAULT;
 
         display_flush_frame_buffer();
 
@@ -122,7 +129,7 @@ void gui_task(void) {
                     hours++;
                 }
 
-                //---- HANDLE CONTROLS ---------------------------------------------------------------------------------------------------------------------------
+                //---- HANDLE CONTROLS AND SCREEN SWITCHES -------------------------------------------------------------------------------------------------------
 
                 // buttons
                 if (keypad_is_pressed(KEY_MODE, true) && !load_enabled) {
@@ -147,8 +154,6 @@ void gui_task(void) {
 
                     load_set_cc_level(new_current);
                 }
-
-                if (load_get_fault()) current_screen = SCREEN_FAULT;
 
                 //---- RENDER UI ---------------------------------------------------------------------------------------------------------------------------------
 
@@ -240,7 +245,7 @@ void gui_task(void) {
 
                 if (!load_get_checksum_fault()) current_screen = SCREEN_MAIN;
 
-                __print_error_window(bitmap_sad_emoji_32x32, "Communication", "failed");
+                __print_error_window(bitmap_sad_emoji_32x32, "ERROR", "Load module", "not responding", "");
                 display_draw_string("retrying", font_6x8, 28, 56, 0);
 
                 uint8_t state = (kernel_get_time_ms() & (0x3 << 8)) >> 8;
@@ -252,27 +257,50 @@ void gui_task(void) {
 
             case SCREEN_FAULT: {
 
-                uint16_t fault_register = load_get_fault_flags() & load_get_fault_mask();
+                //---- PARSE DATA --------------------------------------------------------------------------------------------------------------------------------
+
+                load_fault_t fault_register = load_get_fault_flags() & load_get_fault_mask();
+                load_fault_t current_fault = 0;
+
+                // find the first set fault flag
+                for (int fault = 0; fault < 16; fault++) {
+                    
+                    if (fault_register & (1 << fault)) {
+
+                        current_fault = 1 << fault;
+                        break;
+                    }
+                }
+
+                //---- HANDLE CONTROLS AND SCREEN SWITCHES -------------------------------------------------------------------------------------------------------
 
                 if (!load_get_fault()) current_screen = SCREEN_MAIN;
 
-                display_draw_string("fault screen", font_6x8, 0, 0, 0);
+                if (keypad_is_pressed_for_ms(KEY_SET, 500, true)) load_clear_fault(current_fault);
 
-                uint8_t cursor_pos = 0;
-                if (fault_register & LOAD_FAULT_COM) display_draw_string("COM ", font_6x8, cursor_pos, 8, &cursor_pos);
-                if (fault_register & LOAD_FAULT_REG) display_draw_string("REG ", font_6x8, cursor_pos, 8, &cursor_pos);
-                if (fault_register & LOAD_FAULT_OTP) display_draw_string("OTP ", font_6x8, cursor_pos, 8, &cursor_pos);
-                if (fault_register & LOAD_FAULT_TEMP_L) display_draw_string("TMPL ", font_6x8, cursor_pos, 8, &cursor_pos);
-                if (fault_register & LOAD_FAULT_TEMP_R) display_draw_string("TMPR ", font_6x8, cursor_pos, 8, &cursor_pos);
-                if (fault_register & LOAD_FAULT_FAN1) display_draw_string("FAN1 ", font_6x8, cursor_pos, 8, &cursor_pos);
-                if (fault_register & LOAD_FAULT_FAN2) display_draw_string("FAN2 ", font_6x8, cursor_pos, 8, &cursor_pos);
-                if (fault_register & LOAD_FAULT_OCP) display_draw_string("OCP ", font_6x8, cursor_pos, 8, &cursor_pos);
-                if (fault_register & LOAD_FAULT_OPP) display_draw_string("OPP ", font_6x8, cursor_pos, 8, &cursor_pos);
-                if (fault_register & LOAD_FAULT_FUSE_L1) display_draw_string("FL1 ", font_6x8, cursor_pos, 8, &cursor_pos);
-                if (fault_register & LOAD_FAULT_FUSE_L2) display_draw_string("FL2 ", font_6x8, cursor_pos, 8, &cursor_pos);
-                if (fault_register & LOAD_FAULT_FUSE_R1) display_draw_string("FR1 ", font_6x8, cursor_pos, 8, &cursor_pos);
-                if (fault_register & LOAD_FAULT_FUSE_R2) display_draw_string("FR2 ", font_6x8, cursor_pos, 8, &cursor_pos);
-                if (fault_register & LOAD_FAULT_EXTERNAL) display_draw_string("EXT ", font_6x8, cursor_pos, 8, &cursor_pos);
+                //---- RENDER UI ---------------------------------------------------------------------------------------------------------------------------------
+
+                if      (current_fault == LOAD_FAULT_COM) __print_error_window(bitmap_sad_emoji_32x32, "LOAD FAULT", "Interface", "panel", "disconnected");
+                else if (current_fault == LOAD_FAULT_REG) __print_error_window(bitmap_sad_emoji_32x32, "LOAD FAULT", "Regulator", "in saturation", "");
+                else if (current_fault == LOAD_FAULT_OTP) __print_error_window(bitmap_fault_otp_32x48, "LOAD FAULT", "Overtemperature", "protection", "triggered");
+                else if (current_fault == LOAD_FAULT_TEMP_L) __print_error_window(bitmap_sad_emoji_32x32, "LOAD FAULT", "Left temp", "sensor not", "working");
+                else if (current_fault == LOAD_FAULT_TEMP_R) __print_error_window(bitmap_sad_emoji_32x32, "LOAD FAULT", "Right temp", "sensor not", "working");
+                else if (current_fault == LOAD_FAULT_FAN1) __print_error_window(bitmap_sad_emoji_32x32, "LOAD FAULT", "Bottom fan", "not spinning", "");
+                else if (current_fault == LOAD_FAULT_FAN2) __print_error_window(bitmap_sad_emoji_32x32, "LOAD FAULT", "Top fan", "not spinning", "");
+                else if (current_fault == LOAD_FAULT_OCP) __print_error_window(bitmap_sad_emoji_32x32, "LOAD FAULT", "Overcurrent", "protection", "triggered");
+                else if (current_fault == LOAD_FAULT_OPP) __print_error_window(bitmap_fault_otp_32x48, "LOAD FAULT", "Overpower", "protection", "triggered");
+                else if (current_fault == LOAD_FAULT_FUSE_L1) __print_error_window(bitmap_sad_emoji_32x32, "LOAD FAULT", "L1 sink", "no current", "check fuse");
+                else if (current_fault == LOAD_FAULT_FUSE_L2) __print_error_window(bitmap_sad_emoji_32x32, "LOAD FAULT", "L2 sink", "no current", "check fuse");
+                else if (current_fault == LOAD_FAULT_FUSE_R1) __print_error_window(bitmap_sad_emoji_32x32, "LOAD FAULT", "R1 sink", "no current", "check fuse");
+                else if (current_fault == LOAD_FAULT_FUSE_R2) __print_error_window(bitmap_sad_emoji_32x32, "LOAD FAULT", "R2 sink", "no current", "check fuse");
+                else if (current_fault == LOAD_FAULT_EXTERNAL) __print_error_window(bitmap_sad_emoji_32x32, "LOAD FAULT", "EXTERNAL fault", "triggered", "");
+
+                display_draw_string("clear ", font_6x8, 48, 56, 0);
+
+                if (keypad_is_pressed(KEY_SET, false) && keypad_get_hold_time(KEY_SET) < 500) {
+
+                    display_draw_bitmap(bitmap_progress_bar_32x8[(keypad_get_hold_time(KEY_SET) >> 6) & 0x7], 48, 56);
+                }
 
             } break;
 
@@ -308,13 +336,14 @@ void gui_task(void) {
 
 //---- INTERNAL FUNCTIONS ----------------------------------------------------------------------------------------------------------------------------------------
 
-void __print_error_window(const uint8_t *icon, char *line1, char *line2) {
+void __print_error_window(const uint8_t *icon, char *header, char *line1, char *line2, char *line3) {
 
     display_flush_frame_buffer();
     display_draw_bitmap(icon, 8, 8);
-    display_draw_string("ERROR", font_6x8, 48, 8, 0);
+    display_draw_string(header, font_6x8, 48, 8, 0);
     display_draw_string(line1, font_6x8, 48, 24, 0);
     display_draw_string(line2, font_6x8, 48, 32, 0);
+    display_draw_string(line3, font_6x8, 48, 40, 0);
 }
 
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
