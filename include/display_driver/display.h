@@ -31,8 +31,14 @@ void display_clear_area(uint8_t start_x, uint8_t start_y, uint8_t width, uint8_t
 // draw bitmap on specified coordinates - fast (y coordinate must be page aligned i.e. divisible by 8) (0, 0 = top left corner)
 void display_draw_bitmap(const uint8_t* bitmap, uint8_t x_pos, uint8_t y_pos);
 
+// draw animated bitmap on specified coordinates - fast (y coordinate must be page aligned i.e. divisible by 8) (0, 0 = top left corner)
+void display_draw_bitmap_animated(const uint8_t* bitmap, uint8_t x_pos, uint8_t y_pos, kernel_time_t time, uint32_t anim_period);
+
 // draw bitmap on specified coordinates (0,0 = top left corner)
 void display_draw_bitmap_not_aligned(const uint8_t* bitmap, uint8_t x_pos, uint8_t y_pos, bool transparency);
+
+// draw animated bitmap on specified coordinates (0,0 = top left corner)
+void display_draw_bitmap_not_aligned_animated(const uint8_t* bitmap, uint8_t x_pos, uint8_t y_pos, bool transparency, kernel_time_t time, uint32_t anim_period);
 
 // print single character on screen (y coordinate must be page aligned i.e. divisible by 8)
 void display_draw_char(char c, const uint8_t* font, uint8_t x_pos, uint8_t y_pos, uint8_t *cursor);

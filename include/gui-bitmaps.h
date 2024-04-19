@@ -18,10 +18,10 @@ extern const uint8_t bitmap_vut_logo_invert_32x32[];
 extern const uint8_t bitmap_mk_logo_32x24[];
 
 // small temperature icon
-extern const uint8_t bitmap_temp_icon_9x8[2][11];
+extern const uint8_t bitmap_anim_temp_icon_9x8[];
 
 // animated flying bug
-extern const uint8_t bitmap_bug_16x18[2][50];
+extern const uint8_t bitmap_anim_bug_16x24[];
 
 // off button
 extern const uint8_t bitmap_off_button_32x16[];
@@ -30,7 +30,10 @@ extern const uint8_t bitmap_off_button_32x16[];
 extern const uint8_t bitmap_on_button_32x16[];
 
 // progress bar
-extern const uint8_t bitmap_progress_bar_32x8[8][34];
+extern const uint8_t bitmap_anim_progress_bar_32x8[];
+
+// animated dots
+extern const uint8_t bitmap_anim_dots_21x8[];
 
 // setpoint cursor arrow
 extern const uint8_t bitmap_cursor_arrow_6x8[];
@@ -43,6 +46,18 @@ extern const uint8_t bitmap_sad_emoji_32x32[];
 
 // fault burning transistor
 extern const uint8_t bitmap_fault_transistor_32x48[];
+
+// fault popped fuse
+extern const uint8_t bitmap_fault_fuse_32x48[];
+
+// fault fan
+extern const uint8_t bitmap_fault_fan_32x48[];
+
+// fault temperature
+extern const uint8_t bitmap_fault_temperature_32x48[];
+
+// fault regulation
+extern const uint8_t bitmap_fault_regulation_32x48[];
 
 //----------------------------------------------------------------------------------------------------------------------------------------------------------------
 

@@ -7,7 +7,6 @@
 #define GUI_POWER_UP_DELAY_MS               100     // delay from powerup to drawing first frame [ms]
 #define GUI_POWERUP_COM_TIMEOUT_MS          3000    // if the load module doesn't respond after power up an error screen will be shown [ms]
 #define GUI_LOAD_POWERUP_TEST_DURATION_MS   3000    // duration of load power-up test (for progress bar timing) [ms]
-#define GUI_LOAD_POWERUP_TEST_TIMEOUT_MS    7000    // if the ready flag in the load status register isnt set after powerup, an error message wil be shown [ms]
 
 // default increments when enabling the setpoint setting mode
 #define GUI_SETPOINT_START_INCREMENT_CC     1000

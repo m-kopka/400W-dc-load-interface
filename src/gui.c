@@ -56,24 +56,21 @@ void gui_task(void) {
 
         // load module found, now wait for the power-up test to finish
         if (load_get_module_count() > 0) {
+
+            // progress bar start time is time of communication init
+            static kernel_time_t com_init_time = 0;
+            if (com_init_time == 0) com_init_time = kernel_get_time_ms();
             
             // draw progress bar
-            int32_t state = kernel_get_time_ms() * 8 / GUI_LOAD_POWERUP_TEST_DURATION_MS;
-            if (state > 7) state = 7;
-            display_draw_bitmap(bitmap_progress_bar_32x8[state], 48, 48);
-
-            // show error if the power-up test doesn't finish
-            if (kernel_get_time_ms() > GUI_LOAD_POWERUP_TEST_TIMEOUT_MS) __print_error_window(bitmap_sad_emoji_32x32, "ERROR", "Load stuck", "in selftest", "");
+            display_draw_bitmap_animated(bitmap_anim_progress_bar_32x8, 48, 48, kernel_get_time_ms() - com_init_time, GUI_LOAD_POWERUP_TEST_DURATION_MS);
 
         // no load modules found, communication timeout
         } else if (kernel_get_time_ms() > GUI_POWERUP_COM_TIMEOUT_MS) {
 
             __print_error_window(bitmap_sad_emoji_32x32, "ERROR", "No load", "modules found", "");
-            display_draw_string("retrying", font_6x8, 28, 56, 0);
 
             // draw animated dots
-            uint8_t state = (kernel_get_time_ms() & (0x3 << 8)) >> 8;
-            display_draw_string(".", font_6x8, 82 + (3 * state), 56, 0); 
+            display_draw_bitmap_animated(bitmap_anim_dots_21x8, 53, 48, kernel_get_time_ms(), 1000);
         }
 
         display_render_frame();
@@ -235,7 +232,7 @@ void gui_task(void) {
                 if (load_get_not_in_reg()) display_draw_string("REG!", font_6x8, 48, 0, 0);
 
                 // temperature
-                display_draw_bitmap(bitmap_temp_icon_9x8[!!(kernel_get_time_ms() & (1 << 9)) & load_enabled], 92, 0);
+                display_draw_bitmap_animated(bitmap_anim_temp_icon_9x8, 92, 0, kernel_get_time_ms() * load_enabled, 1000);
                 
                 cursor_pos = 104;
                 if (load_temp < 10) display_draw_char(' ', font_6x8, cursor_pos, 0, &cursor_pos);
@@ -369,12 +366,10 @@ void gui_task(void) {
                 // connection restored, go back to main screen
                 if (!load_get_checksum_fault()) current_screen = SCREEN_MAIN;
 
-                __print_error_window(bitmap_sad_emoji_32x32, "ERROR", "Load module", "not responding", "");
-                display_draw_string("retrying", font_6x8, 28, 56, 0);
+                __print_error_window(bitmap_sad_emoji_32x32, "ERROR", "Load module", "com timeout", "");
 
                 // draw animated dots
-                uint8_t state = (kernel_get_time_ms() & (0x3 << 8)) >> 8;
-                display_draw_string(".", font_6x8, 82 + (3 * state), 56, 0); 
+                display_draw_bitmap_animated(bitmap_anim_dots_21x8, 53, 48, kernel_get_time_ms(), 1000);
 
             } break;
 
@@ -407,18 +402,18 @@ void gui_task(void) {
                 //---- RENDER UI ---------------------------------------------------------------------------------------------------------------------------------
 
                 if      (current_fault == LOAD_FAULT_COM) __print_error_window(bitmap_sad_emoji_32x32, "LOAD FAULT", "Interface", "panel", "disconnected");
-                else if (current_fault == LOAD_FAULT_REG) __print_error_window(bitmap_sad_emoji_32x32, "LOAD FAULT", "Regulator", "in saturation", "");
-                else if (current_fault == LOAD_FAULT_OTP) __print_error_window(bitmap_fault_transistor_32x48, "LOAD FAULT", "Overtemperature", "protection", "triggered");
-                else if (current_fault == LOAD_FAULT_TEMP_L) __print_error_window(bitmap_sad_emoji_32x32, "LOAD FAULT", "Left temp", "sensor not", "working");
-                else if (current_fault == LOAD_FAULT_TEMP_R) __print_error_window(bitmap_sad_emoji_32x32, "LOAD FAULT", "Right temp", "sensor not", "working");
-                else if (current_fault == LOAD_FAULT_FAN1) __print_error_window(bitmap_sad_emoji_32x32, "LOAD FAULT", "Bottom fan", "not spinning", "");
-                else if (current_fault == LOAD_FAULT_FAN2) __print_error_window(bitmap_sad_emoji_32x32, "LOAD FAULT", "Top fan", "not spinning", "");
-                else if (current_fault == LOAD_FAULT_OCP) __print_error_window(bitmap_sad_emoji_32x32, "LOAD FAULT", "Overcurrent", "protection", "triggered");
+                else if (current_fault == LOAD_FAULT_REG) __print_error_window(bitmap_fault_regulation_32x48, "LOAD FAULT", "Regulator", "in saturation", "");
+                else if (current_fault == LOAD_FAULT_OTP) __print_error_window(bitmap_fault_transistor_32x48, "LOAD FAULT", "OTP", "triggered", "");
+                else if (current_fault == LOAD_FAULT_TEMP_L) __print_error_window(bitmap_fault_temperature_32x48, "LOAD FAULT", "Left temp", "sensor not", "working");
+                else if (current_fault == LOAD_FAULT_TEMP_R) __print_error_window(bitmap_fault_temperature_32x48, "LOAD FAULT", "Right temp", "sensor not", "working");
+                else if (current_fault == LOAD_FAULT_FAN1) __print_error_window(bitmap_fault_fan_32x48, "LOAD FAULT", "Bottom fan", "not spinning", "");
+                else if (current_fault == LOAD_FAULT_FAN2) __print_error_window(bitmap_fault_fan_32x48, "LOAD FAULT", "Top fan", "not spinning", "");
+                else if (current_fault == LOAD_FAULT_OCP) __print_error_window(bitmap_fault_transistor_32x48, "LOAD FAULT", "Overcurrent", "protection", "triggered");
                 else if (current_fault == LOAD_FAULT_OPP) __print_error_window(bitmap_fault_transistor_32x48, "LOAD FAULT", "Overpower", "protection", "triggered");
-                else if (current_fault == LOAD_FAULT_FUSE_L1) __print_error_window(bitmap_sad_emoji_32x32, "LOAD FAULT", "L1 sink", "no current", "check fuse");
-                else if (current_fault == LOAD_FAULT_FUSE_L2) __print_error_window(bitmap_sad_emoji_32x32, "LOAD FAULT", "L2 sink", "no current", "check fuse");
-                else if (current_fault == LOAD_FAULT_FUSE_R1) __print_error_window(bitmap_sad_emoji_32x32, "LOAD FAULT", "R1 sink", "no current", "check fuse");
-                else if (current_fault == LOAD_FAULT_FUSE_R2) __print_error_window(bitmap_sad_emoji_32x32, "LOAD FAULT", "R2 sink", "no current", "check fuse");
+                else if (current_fault == LOAD_FAULT_FUSE_L1) __print_error_window(bitmap_fault_fuse_32x48, "LOAD FAULT", "L1 sink", "no current", "check fuse");
+                else if (current_fault == LOAD_FAULT_FUSE_L2) __print_error_window(bitmap_fault_fuse_32x48, "LOAD FAULT", "L2 sink", "no current", "check fuse");
+                else if (current_fault == LOAD_FAULT_FUSE_R1) __print_error_window(bitmap_fault_fuse_32x48, "LOAD FAULT", "R1 sink", "no current", "check fuse");
+                else if (current_fault == LOAD_FAULT_FUSE_R2) __print_error_window(bitmap_fault_fuse_32x48, "LOAD FAULT", "R2 sink", "no current", "check fuse");
                 else if (current_fault == LOAD_FAULT_EXTERNAL) __print_error_window(bitmap_sad_emoji_32x32, "LOAD FAULT", "EXTERNAL fault", "triggered", "");
 
                 display_draw_string("clear ", font_6x8, 48, 56, 0);
@@ -426,7 +421,7 @@ void gui_task(void) {
                 // render clearing progress bar
                 if (keypad_is_pressed(KEY_SET, false) && keypad_get_hold_time(KEY_SET) < GUI_FAULT_CLEAR_HOLD_TIME_MS) {
 
-                    display_draw_bitmap(bitmap_progress_bar_32x8[(keypad_get_hold_time(KEY_SET) >> 6) & 0x7], 48, 56);
+                    display_draw_bitmap_animated(bitmap_anim_progress_bar_32x8, 48, 56, keypad_get_hold_time(KEY_SET), GUI_FAULT_CLEAR_HOLD_TIME_MS);
                 }
 
             } break;
@@ -441,7 +436,7 @@ void gui_task(void) {
 
         if (bug_enabled) {
 
-            display_draw_bitmap_not_aligned(bitmap_bug_16x18[!!(kernel_get_time_ms() & (1 << 8))], bug_pos_x, bug_pos_y, true);
+            display_draw_bitmap_not_aligned_animated(bitmap_anim_bug_16x24, bug_pos_x, bug_pos_y, true, kernel_get_time_ms(), 500);
 
             bug_pos_x += (bug_dir_x) ? 1 : -1;
             bug_pos_y += (bug_dir_y) ? 1 : -1;

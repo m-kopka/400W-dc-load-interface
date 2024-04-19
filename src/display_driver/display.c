@@ -8,8 +8,9 @@
 #define DISPLAY_PAGE_SEGMENT_SIZE 16                                    // horizontal size of one page segment. Pages are divided into segments and compared to segments of previous frame
 #define DISPLAY_PAGE_SEGMENTS_PER_PAGE ((DISPLAY_WIDTH) / (DISPLAY_PAGE_SEGMENT_SIZE))      // number of page segments per page
 
-#define BITMAP_HEADER_SIZE  2   // first 2 bytes of a bitmap are width and height
-#define FONT_HEADER_SIZE    2   // font header also contains first character and last character
+#define BITMAP_HEADER_SIZE              2   // first 2 bytes of a bitmap are width and height
+#define ANIMATED_BITMAP_HEADER_SIZE     3   // animated bitmap header also contains number of animation states
+#define FONT_HEADER_SIZE                4   // font header also contains first character and last character
 
 //---- INTERNAL DATA ---------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -18,35 +19,16 @@ static uint8_t frame_buffer_0[FRAME_BUFFER_SIZE];
 static uint8_t frame_buffer_1[FRAME_BUFFER_SIZE];
 static uint8_t *active_frame_buffer;      // currently active frame buffer used for rendering (swapped after current frame is done rendering)
 
-//---- PRIVATE FUNCTIONS -----------------------------------------------------------------------------------------------------------------------------------------
+//---- INTERNAL FUNCTIONS ----------------------------------------------------------------------------------------------------------------------------------------
 
 static inline uint8_t bitmap_width(const uint8_t *bitmap) {return (bitmap[0]);}
 static inline uint8_t bitmap_height(const uint8_t *bitmap) {return (bitmap[1]);}
+static inline uint8_t bitmap_anim_states(const uint8_t *bitmap) {return (bitmap[2]);}
 static inline    char font_first_char(const uint8_t *font) {return (*((char*)font + 2));}
 static inline    char font_last_char(const uint8_t *font) {return (*((char*)font + 3));}
 
-//- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-
-static inline void __draw_bitmap(const uint8_t* bitmap, uint8_t x_pos, uint8_t y_pos, uint8_t width, uint8_t height) {
-
-    uint32_t frame_buffer_start = DISPLAY_WIDTH * (y_pos >> 3);                         // destination buffer start offset
-    uint32_t frame_buffer_end = DISPLAY_WIDTH * ((height + y_pos) >> 3);                // destination buffer end offset
-    if (frame_buffer_end > FRAME_BUFFER_SIZE) frame_buffer_end = FRAME_BUFFER_SIZE;     // prevent writing outside the frame buffer area
-
-    uint8_t offset_start = x_pos;                                   // frame buffer starting x axis offset
-    uint8_t offset_end = x_pos + width;                             // frame buffer end x axis offset
-    if (offset_end > DISPLAY_WIDTH) offset_end = DISPLAY_WIDTH;     // prevent writing outside the frame buffer area
-
-    uint32_t bitmap_offset = 0;     // source buffer offset
-
-    for (uint32_t frame_buffer_pos = frame_buffer_start; frame_buffer_pos < frame_buffer_end; frame_buffer_pos += DISPLAY_WIDTH) {
-
-        for (int offset = offset_start; offset < offset_end; offset++) {
-            
-            active_frame_buffer[frame_buffer_pos + offset] = bitmap[bitmap_offset++];
-        }
-    }
-}
+void __draw_bitmap(const uint8_t* bitmap, uint8_t x_pos, uint8_t y_pos, uint8_t width, uint8_t height);
+void __draw_bitmap_not_aligned(const uint8_t* bitmap, uint8_t x_pos, uint8_t y_pos, uint8_t width, uint8_t height, bool transparency);
 
 //---- FUNCTIONS -------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -132,32 +114,41 @@ void display_draw_bitmap(const uint8_t* bitmap, uint8_t x_pos, uint8_t y_pos) {
 
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
+// draw animated bitmap on specified coordinates - fast (y coordinate must be page aligned i.e. divisible by 8) (0, 0 = top left corner)
+void display_draw_bitmap_animated(const uint8_t* bitmap, uint8_t x_pos, uint8_t y_pos, kernel_time_t time, uint32_t anim_period) {
+
+    if (anim_period == 0) return;
+    
+    uint8_t anim_states = bitmap_anim_states(bitmap);
+    int32_t state = (time * anim_states / anim_period) % anim_states;
+
+    __draw_bitmap(bitmap + (bitmap_height(bitmap) >> 3) * bitmap_width(bitmap) * state + ANIMATED_BITMAP_HEADER_SIZE, x_pos, y_pos, bitmap_width(bitmap), bitmap_height(bitmap));
+}
+
+//- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
 // draw bitmap on specified coordinates (0,0 = top left corner)
 void display_draw_bitmap_not_aligned(const uint8_t* bitmap, uint8_t x_pos, uint8_t y_pos, bool transparency) {
 
     uint8_t width = bitmap_width(bitmap);
     uint8_t height = bitmap_height(bitmap);
 
-    uint8_t layers = ((y_pos % 8) > 0) ? (height >> 3) + 1 : height >> 3;     // page aligned bitmap spans (area height / 8) pages. non-aligned area spans one page more (first and last pages are covered partialy)
+    __draw_bitmap_not_aligned(bitmap + BITMAP_HEADER_SIZE, x_pos,  y_pos, width, height, transparency);
+}
 
-    for (int layer = 0; layer < layers; layer++) {
+//- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
-        if ((y_pos >> 3) + layer >= DISPLAY_PAGES) break;
+// draw animated bitmap on specified coordinates (0,0 = top left corner)
+void display_draw_bitmap_not_aligned_animated(const uint8_t* bitmap, uint8_t x_pos, uint8_t y_pos, bool transparency, kernel_time_t time, uint32_t anim_period) {
 
-        for (int x_offset = 0; x_offset < width; x_offset++) {
+    if (anim_period == 0) return;
 
-            if (x_pos + x_offset >= DISPLAY_WIDTH) break;
+    uint8_t width = bitmap_width(bitmap);
+    uint8_t height = bitmap_height(bitmap);
+    uint8_t anim_states = bitmap_anim_states(bitmap);
+    int32_t state = (time * anim_states / anim_period) % anim_states;
 
-            uint8_t pixels = 0;
-            if (layer == 0) pixels = bitmap[width * layer + x_offset + BITMAP_HEADER_SIZE] << (y_pos % 8);
-            else if (layer == ((height >> 3) - 1) && (layers == height >> 3)) pixels = bitmap[width * layer + x_offset + BITMAP_HEADER_SIZE] >> ((y_pos % 8));
-            else if (layer == layers - 1) pixels = bitmap[width * (layer - 1) + x_offset + BITMAP_HEADER_SIZE] >> (8 - (y_pos % 8));
-            else pixels = (bitmap[width * layer + x_offset + BITMAP_HEADER_SIZE] << (y_pos % 8)) | (bitmap[width * (layer - 1) + x_offset + BITMAP_HEADER_SIZE] >> (8 - (y_pos % 8)));
-
-            if (transparency) active_frame_buffer[DISPLAY_WIDTH * ((y_pos >> 3) + layer) + x_pos + x_offset] |= pixels;
-            else              active_frame_buffer[DISPLAY_WIDTH * ((y_pos >> 3) + layer) + x_pos + x_offset]  = pixels;
-        }
-    }
+    __draw_bitmap_not_aligned(bitmap + (bitmap_height(bitmap) >> 3) * bitmap_width(bitmap) * state + ANIMATED_BITMAP_HEADER_SIZE, x_pos,  y_pos, width, height, transparency);
 }
 
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -168,7 +159,7 @@ void display_draw_char(char c, const uint8_t* font, uint8_t x_pos, uint8_t y_pos
     if (c < font_first_char(font) || c > font_last_char(font)) return;      // font doesn't contain this character, skip
     if (cursor != 0) *cursor += bitmap_width(font);                         // if a cursor is used, increment it by char width
 
-    __draw_bitmap(font + (bitmap_height(font) >> 3) * bitmap_width(font) * (c - font_first_char(font)) + 4, x_pos, y_pos, bitmap_width(font), bitmap_height(font));
+    __draw_bitmap(font + (bitmap_height(font) >> 3) * bitmap_width(font) * (c - font_first_char(font)) + FONT_HEADER_SIZE, x_pos, y_pos, bitmap_width(font), bitmap_height(font));
 }
 
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -192,6 +183,55 @@ void display_draw_int(int num, const uint8_t* font, uint8_t x_pos, uint8_t y_pos
     itoa(num, temp_buff, 16, 10);
 
     display_draw_string(temp_buff, font, x_pos, y_pos, cursor);
+}
+
+//---- INTERNAL FUNCTIONS ----------------------------------------------------------------------------------------------------------------------------------------
+
+void __draw_bitmap(const uint8_t* bitmap, uint8_t x_pos, uint8_t y_pos, uint8_t width, uint8_t height) {
+
+    uint32_t frame_buffer_start = DISPLAY_WIDTH * (y_pos >> 3);                         // destination buffer start offset
+    uint32_t frame_buffer_end = DISPLAY_WIDTH * ((height + y_pos) >> 3);                // destination buffer end offset
+    if (frame_buffer_end > FRAME_BUFFER_SIZE) frame_buffer_end = FRAME_BUFFER_SIZE;     // prevent writing outside the frame buffer area
+
+    uint8_t offset_start = x_pos;                                   // frame buffer starting x axis offset
+    uint8_t offset_end = x_pos + width;                             // frame buffer end x axis offset
+    if (offset_end > DISPLAY_WIDTH) offset_end = DISPLAY_WIDTH;     // prevent writing outside the frame buffer area
+
+    uint32_t bitmap_offset = 0;     // source buffer offset
+
+    for (uint32_t frame_buffer_pos = frame_buffer_start; frame_buffer_pos < frame_buffer_end; frame_buffer_pos += DISPLAY_WIDTH) {
+
+        for (int offset = offset_start; offset < offset_end; offset++) {
+            
+            active_frame_buffer[frame_buffer_pos + offset] = bitmap[bitmap_offset++];
+        }
+    }
+}
+
+//- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
+void __draw_bitmap_not_aligned(const uint8_t* bitmap, uint8_t x_pos, uint8_t y_pos, uint8_t width, uint8_t height, bool transparency) {
+
+    uint8_t layers = ((y_pos % 8) > 0) ? (height >> 3) + 1 : height >> 3;     // page aligned bitmap spans (area height / 8) pages. non-aligned area spans one page more (first and last pages are covered partialy)
+
+    for (int layer = 0; layer < layers; layer++) {
+
+        if ((y_pos >> 3) + layer >= DISPLAY_PAGES) break;
+
+        for (int x_offset = 0; x_offset < width; x_offset++) {
+
+            if (x_pos + x_offset >= DISPLAY_WIDTH) break;
+
+            uint8_t pixels = 0;
+            if (layer == 0) pixels = bitmap[width * layer + x_offset] << (y_pos % 8);
+            else if (layer == ((height >> 3) - 1) && (layers == height >> 3)) pixels = bitmap[width * layer + x_offset] >> ((y_pos % 8));
+            else if (layer == layers - 1) pixels = bitmap[width * (layer - 1) + x_offset] >> (8 - (y_pos % 8));
+            else pixels = (bitmap[width * layer + x_offset] << (y_pos % 8)) | (bitmap[width * (layer - 1) + x_offset] >> (8 - (y_pos % 8)));
+
+            if (transparency) active_frame_buffer[DISPLAY_WIDTH * ((y_pos >> 3) + layer) + x_pos + x_offset] |= pixels;
+            else              active_frame_buffer[DISPLAY_WIDTH * ((y_pos >> 3) + layer) + x_pos + x_offset]  = pixels;
+        }
+    }
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------------------------------------
