@@ -9,22 +9,24 @@
 // gui screens
 typedef enum {
 
-    SCREEN_MAIN,
-    SCREEN_COM_FAULT,
-    SCREEN_FAULT,
+    SCREEN_MAIN,            // main screen
+    SCREEN_COM_FAULT,       // communication timeout
+    SCREEN_FAULT,           // load fault notification
 
 } screen_t;
 
 //---- INTERNAL FUNCTIONS ----------------------------------------------------------------------------------------------------------------------------------------
 
 void __print_error_window(const uint8_t *icon, char *header, char *line1, char *line2, char *line3);
-void __print_decimal_with_unit(int value, char *unit, const uint8_t *font, uint8_t x_pos, uint8_t y_pos, uint8_t dec_places, uint8_t *cursor);
+void __print_decimal_with_unit(int value, char *unit, const uint8_t *font, uint8_t x_pos, uint8_t y_pos, uint8_t dec_places);
 void __print_decimal(int value, const uint8_t *font, uint8_t x_pos, uint8_t y_pos, uint8_t dec_places, uint8_t *cursor);
 
 //---- FUNCTIONS -------------------------------------------------------------------------------------------------------------------------------------------------
 
+// handles user controls and drawing graphics on screen
 void gui_task(void) {
 
+    // start keypad kernel task
     uint32_t keypad_buttons_stack[32];
     kernel_create_task(keypad_buttons_task, keypad_buttons_stack, sizeof(keypad_buttons_stack), 10);
 
@@ -38,35 +40,44 @@ void gui_task(void) {
 
     display_init();
 
-    kernel_sleep_ms(100);
+    kernel_sleep_ms(GUI_POWER_UP_DELAY_MS);   // wait for slave to start responding and skip the loading screen if the load power-up test is already finished
 
     //---- BOOT SCREEN AND COM FAULT MESSAGE ---------------------------------------------------------------------------------------------------------------------
 
+    // wait for the load to start communicating and finish its power-up test
     while (!load_get_ready()) {
 
         display_flush_frame_buffer();
 
+        // draw loading screen
         display_draw_bitmap(bitmap_mk_logo_32x24, 8, 8);
         display_draw_string("400W DC Load", font_6x8, 48, 8, 0);
         display_draw_string("Martin Kopka 2024", font_6x8, 13, 32, 0);
 
+        // load module found, now wait for the power-up test to finish
         if (load_get_module_count() > 0) {
             
-            display_draw_bitmap(bitmap_progress_bar_32x8[(kernel_get_time_ms() >> 8) & 0x7], 48, 48);
+            // draw progress bar
+            int32_t state = kernel_get_time_ms() * 8 / GUI_LOAD_POWERUP_TEST_DURATION_MS;
+            if (state > 7) state = 7;
+            display_draw_bitmap(bitmap_progress_bar_32x8[state], 48, 48);
 
-            if (kernel_get_time_ms() > 5000) __print_error_window(bitmap_sad_emoji_32x32, "ERROR", "Load stuck", "in selftest", "");
+            // show error if the power-up test doesn't finish
+            if (kernel_get_time_ms() > GUI_LOAD_POWERUP_TEST_TIMEOUT_MS) __print_error_window(bitmap_sad_emoji_32x32, "ERROR", "Load stuck", "in selftest", "");
 
-        } else if (kernel_get_time_ms() > 3000) {
+        // no load modules found, communication timeout
+        } else if (kernel_get_time_ms() > GUI_POWERUP_COM_TIMEOUT_MS) {
 
             __print_error_window(bitmap_sad_emoji_32x32, "ERROR", "No load", "modules found", "");
             display_draw_string("retrying", font_6x8, 28, 56, 0);
 
+            // draw animated dots
             uint8_t state = (kernel_get_time_ms() & (0x3 << 8)) >> 8;
             display_draw_string(".", font_6x8, 82 + (3 * state), 56, 0); 
         }
 
         display_render_frame();
-        kernel_sleep_ms(17);
+        kernel_sleep_ms(1000 / GUI_REFRESH_RATE_FPS );
     }
 
     while (1) {
@@ -85,12 +96,14 @@ void gui_task(void) {
             kernel_yield();
         }
 
+        // switch to fault notification screen if load is in a fault state and communication is ok
         if (load_get_fault() && current_screen != SCREEN_COM_FAULT) current_screen = SCREEN_FAULT;
 
         display_flush_frame_buffer();
 
         //---- GUI -----------------------------------------------------------------------------------------------------------------------------------------------
 
+        // set the EN key backlight
         bool load_enabled = load_get_enable();
         keypad_set_led(load_enabled);
 
@@ -131,12 +144,13 @@ void gui_task(void) {
 
                 //---- HANDLE CONTROLS AND SCREEN SWITCHES -------------------------------------------------------------------------------------------------------
 
-                static uint32_t setting_increment = 0;
-                static uint32_t last_setpoint_change_time = 0;
+                static uint32_t setting_increment = 0;              // CC, CV, CR, CP setpoint increment per encoder step (0 means encoder setting is disabled)
+                static uint32_t last_setpoint_change_time = 0;      // time of last setpoint change. Used for automatically disabling the encoder after some time of inaction
 
+                // automatically disable the encoder if no change was made for some time
                 if (setting_increment > 0 && kernel_get_time_since(last_setpoint_change_time) > 4000) setting_increment = 0;
 
-                // buttons
+                // change load mode
                 if (keypad_is_pressed(KEY_MODE, true) && !load_enabled) {
 
                     if      (load_mode == LOAD_MODE_CC) load_set_mode(LOAD_MODE_CV);
@@ -144,45 +158,49 @@ void gui_task(void) {
                     else if (load_mode == LOAD_MODE_CR) load_set_mode(LOAD_MODE_CP);
                     else                                load_set_mode(LOAD_MODE_CC);
 
-                    setting_increment = 0;
+                    setting_increment = 0;      // disable the encoder if mode was changed
                 }
 
+                // enable the encoder or change the increment
                 if (keypad_is_pressed(KEY_SET, true) || keypad_is_pressed(KEY_ENCODER, true)) {
 
-                    if (setting_increment == 0) {
+                    if (setting_increment == 0) {   // enable the encoder with starting increment if disabled
 
-                        if (load_mode == LOAD_MODE_CC) setting_increment = 1000;
-                        if (load_mode == LOAD_MODE_CV) setting_increment = 1000;
-                        if (load_mode == LOAD_MODE_CR) setting_increment = 1000;
-                        if (load_mode == LOAD_MODE_CP) setting_increment = 10000;
+                        if      (load_mode == LOAD_MODE_CC) setting_increment = GUI_SETPOINT_START_INCREMENT_CC;
+                        else if (load_mode == LOAD_MODE_CV) setting_increment = GUI_SETPOINT_START_INCREMENT_CV;
+                        else if (load_mode == LOAD_MODE_CR) setting_increment = GUI_SETPOINT_START_INCREMENT_CR;
+                        else                                setting_increment = GUI_SETPOINT_START_INCREMENT_CP;
 
-                    } else {
+                    } else {    // decrease decimal place increment and roll if minimum was reached
 
                         setting_increment /= 10;
 
-                        if ((load_mode == LOAD_MODE_CC) && (setting_increment < 100)) setting_increment = 1000;
-                        if ((load_mode == LOAD_MODE_CV) && (setting_increment < 100)) setting_increment = 10000;
-                        if ((load_mode == LOAD_MODE_CR) && (setting_increment < 100)) setting_increment = 10000;
-                        if ((load_mode == LOAD_MODE_CP) && (setting_increment < 1000)) setting_increment = 10000;
+                        if ((load_mode == LOAD_MODE_CC) && (setting_increment < GUI_SETPOINT_MIN_INCREMENT_CC)) setting_increment = GUI_SETPOINT_MAX_INCREMENT_CC;
+                        if ((load_mode == LOAD_MODE_CV) && (setting_increment < GUI_SETPOINT_MIN_INCREMENT_CV)) setting_increment = GUI_SETPOINT_MAX_INCREMENT_CV;
+                        if ((load_mode == LOAD_MODE_CR) && (setting_increment < GUI_SETPOINT_MIN_INCREMENT_CR)) setting_increment = GUI_SETPOINT_MAX_INCREMENT_CR;
+                        if ((load_mode == LOAD_MODE_CP) && (setting_increment < GUI_SETPOINT_MIN_INCREMENT_CP)) setting_increment = GUI_SETPOINT_MAX_INCREMENT_CP;
                     }
 
                     last_setpoint_change_time = kernel_get_time_ms();
                 }
 
+                // enable or disable the load
                 if (keypad_is_pressed(KEY_EN, true)) load_set_enable(!load_enabled);
-                if (keypad_is_pressed_for_ms(KEY_MENU, 1000, true)) bug_enabled = !bug_enabled;
 
-                // rotary encoder
-                int16_t encoder_delta = keypad_get_encoder_pos();
+                // enable or disable the animated bug
+                if (keypad_is_pressed_for_ms(KEY_MENU, GUI_BUG_ENABLE_HOLD_TIME_MS, true)) bug_enabled = !bug_enabled;
 
-                if (encoder_delta != 0) {
+                // change setpoint with rotary encoder
+                int16_t encoder_delta = keypad_get_encoder_pos();   // ger number of steps and direction since last check
 
-                    last_setpoint_change_time = kernel_get_time_ms();
+                if (setting_increment != 0 && encoder_delta != 0) {
 
                     if      (load_mode == LOAD_MODE_CC) load_set_cc_level(iset_ma + setting_increment * encoder_delta);
                     else if (load_mode == LOAD_MODE_CV) load_set_cv_level(vset_mv + setting_increment * encoder_delta);
                     else if (load_mode == LOAD_MODE_CR) load_set_cr_level(rset_mr + setting_increment * encoder_delta);
-                    else if (load_mode == LOAD_MODE_CP) load_set_cp_level(pset_mw + setting_increment * encoder_delta);
+                    else                                load_set_cp_level(pset_mw + setting_increment * encoder_delta);
+
+                    last_setpoint_change_time = kernel_get_time_ms();
                 }
 
                 //---- RENDER UI ---------------------------------------------------------------------------------------------------------------------------------
@@ -203,15 +221,15 @@ void gui_task(void) {
                 display_draw_int(seconds, font_6x8, cursor_pos, 0, &cursor_pos);
 
                 // total mAh
-                __print_decimal_with_unit(total_mah * 1000, "mAh", font_6x8, 0, 8, 0, 0);
+                __print_decimal_with_unit(total_mah * 1000, "mAh", font_6x8, 0, 8, 0);
 
                 // total mWh
-                if (total_mwh < 1000)           __print_decimal_with_unit(total_mwh * 1000, "mWh", font_6x8, 0, 16, 0, 0);      // 999mWh
-                else if (total_mwh < 10000)     __print_decimal_with_unit(total_mwh, "Wh", font_6x8, 0, 16, 2, 0);              // 9.99Wh
-                else if (total_mwh < 100000)    __print_decimal_with_unit(total_mwh, "Wh", font_6x8, 0, 16, 1, 0);              // 99.9Wh
-                else if (total_mwh < 10000000)  __print_decimal_with_unit(total_mwh, "Wh", font_6x8, 0, 16, 0, 0);              // 9999Wh
-                else if (total_mwh < 100000000) __print_decimal_with_unit(total_mwh / 1000, "kWh", font_6x8, 0, 16, 0, 0);      // 99kWh
-                else                            display_draw_string(">99kWh", font_6x8, 0, 16, 0);                              // >99kWh
+                if (total_mwh < 1000)           __print_decimal_with_unit(total_mwh * 1000, "mWh", font_6x8, 0, 16, 0);      // 999mWh
+                else if (total_mwh < 10000)     __print_decimal_with_unit(total_mwh, "Wh", font_6x8, 0, 16, 2);              // 9.99Wh
+                else if (total_mwh < 100000)    __print_decimal_with_unit(total_mwh, "Wh", font_6x8, 0, 16, 1);              // 99.9Wh
+                else if (total_mwh < 10000000)  __print_decimal_with_unit(total_mwh, "Wh", font_6x8, 0, 16, 0);              // 9999Wh
+                else if (total_mwh < 100000000) __print_decimal_with_unit(total_mwh / 1000, "kWh", font_6x8, 0, 16, 0);      // 99kWh
+                else                            display_draw_string(">99kWh", font_6x8, 0, 16, 0);                           // >99kWh
 
                 // NO_REG flag
                 if (load_get_not_in_reg()) display_draw_string("REG!", font_6x8, 48, 0, 0);
@@ -244,7 +262,7 @@ void gui_task(void) {
                         display_draw_bitmap(bitmap_cursor_arrow_6x8, arrow_pos, 40);
                     }
 
-                    __print_decimal_with_unit(iset_ma, "A", font_6x8, 0, 48, 1, 0);
+                    __print_decimal_with_unit(iset_ma, "A", font_6x8, 0, 48, 1);
 
                 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
@@ -268,7 +286,7 @@ void gui_task(void) {
 
                     uint8_t cursor_pos = 0;
                     if (setting_increment >= 10000 && vset_mv < 10000) display_draw_char(' ', font_6x8, 0, 48, &cursor_pos);
-                    __print_decimal_with_unit(vset_mv, "V", font_6x8, cursor_pos, 48, 1, &cursor_pos);
+                    __print_decimal_with_unit(vset_mv, "V", font_6x8, cursor_pos, 48, 1);
 
                 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
@@ -318,7 +336,7 @@ void gui_task(void) {
 
                     uint8_t cursor_pos = 0;
                     if (setting_increment >= 10000 && pset_mw < 10000) display_draw_char(' ', font_6x8, 0, 48, &cursor_pos);
-                    __print_decimal_with_unit(pset_mw, "W", font_6x8, cursor_pos, 48, 0, &cursor_pos);
+                    __print_decimal_with_unit(pset_mw, "W", font_6x8, cursor_pos, 48, 0);
                 }
 
                 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -330,8 +348,8 @@ void gui_task(void) {
                 display_draw_string(" A", font_6x8, cursor_pos, 32, &cursor_pos);
 
                 // voltage and power
-                __print_decimal_with_unit(load_voltage_mv, "V", font_6x8, 48, 48, 2, 0);
-                __print_decimal_with_unit(load_power_mw, "W", font_6x8, 48, 56, 1, 0);
+                __print_decimal_with_unit(load_voltage_mv, "V", font_6x8, 48, 48, 2);
+                __print_decimal_with_unit(load_power_mw, "W", font_6x8, 48, 56, 1);
 
                 // load ON/OFF icon
                 if (keypad_is_pressed(KEY_MODE, false) && load_enabled && keypad_get_hold_time(KEY_MODE) < 500) {
@@ -348,11 +366,13 @@ void gui_task(void) {
 
             case SCREEN_COM_FAULT: {
 
+                // connection restored, go back to main screen
                 if (!load_get_checksum_fault()) current_screen = SCREEN_MAIN;
 
                 __print_error_window(bitmap_sad_emoji_32x32, "ERROR", "Load module", "not responding", "");
                 display_draw_string("retrying", font_6x8, 28, 56, 0);
 
+                // draw animated dots
                 uint8_t state = (kernel_get_time_ms() & (0x3 << 8)) >> 8;
                 display_draw_string(".", font_6x8, 82 + (3 * state), 56, 0); 
 
@@ -364,6 +384,7 @@ void gui_task(void) {
 
                 //---- PARSE DATA --------------------------------------------------------------------------------------------------------------------------------
 
+                // get masked fault flags
                 load_fault_t fault_register = load_get_fault_flags() & load_get_fault_mask();
                 load_fault_t current_fault = 0;
 
@@ -379,9 +400,9 @@ void gui_task(void) {
 
                 //---- HANDLE CONTROLS AND SCREEN SWITCHES -------------------------------------------------------------------------------------------------------
 
-                if (!load_get_fault()) current_screen = SCREEN_MAIN;
+                if (!load_get_fault()) current_screen = SCREEN_MAIN;        // load not in a fault state anymore, go back to main screen
 
-                if (keypad_is_pressed_for_ms(KEY_SET, 500, true)) load_clear_fault(current_fault);
+                if (keypad_is_pressed_for_ms(KEY_SET, GUI_FAULT_CLEAR_HOLD_TIME_MS, true)) load_clear_fault(current_fault);      // hold SET button to clear the fault
 
                 //---- RENDER UI ---------------------------------------------------------------------------------------------------------------------------------
 
@@ -402,7 +423,8 @@ void gui_task(void) {
 
                 display_draw_string("clear ", font_6x8, 48, 56, 0);
 
-                if (keypad_is_pressed(KEY_SET, false) && keypad_get_hold_time(KEY_SET) < 500) {
+                // render clearing progress bar
+                if (keypad_is_pressed(KEY_SET, false) && keypad_get_hold_time(KEY_SET) < GUI_FAULT_CLEAR_HOLD_TIME_MS) {
 
                     display_draw_bitmap(bitmap_progress_bar_32x8[(keypad_get_hold_time(KEY_SET) >> 6) & 0x7], 48, 56);
                 }
@@ -419,7 +441,7 @@ void gui_task(void) {
 
         if (bug_enabled) {
 
-            display_draw_bitmap_not_aligned(bitmap_bug_16x18[!!(kernel_get_time_ms() & (1 << 8))], bug_pos_x, bug_pos_y, true);      // ANIMATED
+            display_draw_bitmap_not_aligned(bitmap_bug_16x18[!!(kernel_get_time_ms() & (1 << 8))], bug_pos_x, bug_pos_y, true);
 
             bug_pos_x += (bug_dir_x) ? 1 : -1;
             bug_pos_y += (bug_dir_y) ? 1 : -1;
@@ -435,12 +457,13 @@ void gui_task(void) {
         display_render_frame();
         load_start_data_capture();
 
-        kernel_sleep_ms(17);
+        kernel_sleep_ms(1000 / GUI_REFRESH_RATE_FPS );
     }
 }
 
 //---- INTERNAL FUNCTIONS ----------------------------------------------------------------------------------------------------------------------------------------
 
+// prints an error screen with icon, header and up to three lines of text
 void __print_error_window(const uint8_t *icon, char *header, char *line1, char *line2, char *line3) {
 
     display_flush_frame_buffer();
@@ -453,7 +476,8 @@ void __print_error_window(const uint8_t *icon, char *header, char *line1, char *
 
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
-void __print_decimal_with_unit(int value, char *unit, const uint8_t *font, uint8_t x_pos, uint8_t y_pos, uint8_t dec_places, uint8_t *cursor) {
+// prints a number in a decimal format and prints a unit at the end
+void __print_decimal_with_unit(int value, char *unit, const uint8_t *font, uint8_t x_pos, uint8_t y_pos, uint8_t dec_places) {
 
     uint8_t cursor_pos = x_pos;
     __print_decimal(value, font, cursor_pos, y_pos, dec_places, &cursor_pos);
@@ -462,6 +486,7 @@ void __print_decimal_with_unit(int value, char *unit, const uint8_t *font, uint8
 
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
+// prints a number in a decimal format with rounding to selected decimal places (value 1200 with 2 dec_places will be printed as 1.20)
 void __print_decimal(int value, const uint8_t *font, uint8_t x_pos, uint8_t y_pos, uint8_t dec_places, uint8_t *cursor) {
 
     char string[16];        // stores the string generated from the input integer
