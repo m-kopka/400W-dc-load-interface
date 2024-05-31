@@ -211,6 +211,7 @@ void gui_task(void) {
                     display_draw_char(':', font_6x8, cursor_pos, 0, &cursor_pos);
                 }
 
+                if (hours > 0 && minutes < 10) display_draw_char('0', font_6x8, cursor_pos, 0, &cursor_pos);
                 display_draw_int(minutes, font_6x8, cursor_pos, 0, &cursor_pos);
                 display_draw_char(':', font_6x8, cursor_pos, 0, &cursor_pos);
 
