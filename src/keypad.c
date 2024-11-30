@@ -1,16 +1,45 @@
 #include "keypad.h"
 #include "hal/pwm.h"
 
+//---- CONSTANTS -------------------------------------------------------------------------------------------------------------------------------------------------
+
+// possible encoder detector state machine states
+typedef enum {
+
+    ENC_IDLE      = 0x00,   // end position (no step detected)
+    ENC_IDLE_CW   = 0x10,   // end position after clockwise step detected (fourth step in CW step 10 -> 11)
+    ENC_IDLE_CCW  = 0x20,   // end position after counter-clockwise step detected (fourth step in CCW step 01 -> 11)
+    ENC_CW_FIRST  = 0x01,   // first transition in CW step (11 -> 01)
+    ENC_CW_HALF   = 0x02,   // second transition in CW step (01 -> 00)
+    ENC_CW_LAST   = 0x03,   // third transition in CW step (00 -> 10)
+    ENC_CCW_FIRST = 0x04,   // first transition in CW step (11 -> 10)
+    ENC_CCW_HALF  = 0x05,   // second transition in CW step (10 -> 00)
+    ENC_CCW_LAST  = 0x06    // third transition in CW step (01 -> 01)
+
+} encoder_detector_state_t;
+
+// index table for determining next valid state based on current encoder detector state machine state
+// first index is current state, second index is current encoder pin state combination
+// for example, valid clockwise rotation is detected by transitioning through folowing states after pin state transitions: IDLE (11), 01 -> CW_FIRST, 00 -> CW_HALF, 10 -> CW_LAST, 11 -> IDLE_CW
+const encoder_detector_state_t encoder_valid_states[7][4] = {
+
+  {ENC_IDLE,     ENC_CW_FIRST,  ENC_CCW_FIRST, ENC_IDLE},       // next states from ENC_IDLE, ENC_IDLE_CW or ENC_IDLE_CCW states
+  {ENC_CW_HALF,  ENC_CW_FIRST,  ENC_IDLE,      ENC_IDLE},       // next states from ENC_CW_FIRST state
+  {ENC_CW_HALF,  ENC_CW_FIRST,  ENC_CW_LAST,   ENC_IDLE},       // next states from ENC_CW_HALF state
+  {ENC_CW_HALF,  ENC_IDLE,      ENC_CW_LAST,   ENC_IDLE_CW},    // next states from ENC_CW_LAST state
+  {ENC_CCW_HALF, ENC_IDLE,      ENC_CCW_FIRST, ENC_IDLE},       // next states from ENC_CCW_FIRST state
+  {ENC_CCW_HALF, ENC_CCW_LAST,  ENC_CCW_FIRST, ENC_IDLE},       // next states from ENC_CCW_HALF state
+  {ENC_CCW_HALF, ENC_CCW_LAST,  ENC_IDLE,      ENC_IDLE_CCW},   // next states from ENC_CCW_LAST state
+};
+
 //---- INTERNAL DATA ---------------------------------------------------------------------------------------------------------------------------------------------
 
 static uint32_t key_state = 0;                          // bit field containing debounced states of push buttons
 static uint32_t key_press_time_ms[KEY_COUNT] = {0};     // time of key press [ms]
 static uint32_t key_press_acknowledged = 0;
 
-volatile int32_t  encoder_pos = 0;              // encoder knob position, reset after position is read via keypad_get_encoder_pos() function call
-volatile bool     prev_a = false;               
-volatile bool     debounced_a = false;
-volatile uint32_t prev_turn_time_ms = 0;
+encoder_detector_state_t encoder_detector_state = ENC_IDLE;     // encoder detector state machine
+volatile int32_t encoder_pos = 0;                               // encoder knob position, reset after position is read via keypad_get_encoder_pos() function call
 
 //---- INTERNAL FUNCTIONS ----------------------------------------------------------------------------------------------------------------------------------------
 
@@ -49,6 +78,7 @@ void keypad_buttons_task(void) {
     gpio_set_dir(ENCODER_A_GPIO, GPIO_DIR_INPUT);
     gpio_set_dir(ENCODER_B_GPIO, GPIO_DIR_INPUT);
     gpio_set_irq(ENCODER_A_GPIO, GPIO_IRQ_EDGE_LOW | GPIO_IRQ_EDGE_HIGH, true);
+    gpio_set_irq(ENCODER_B_GPIO, GPIO_IRQ_EDGE_LOW | GPIO_IRQ_EDGE_HIGH, true);
 
     while (1) {
 
@@ -85,7 +115,7 @@ void keypad_buttons_task(void) {
 
 //---- FUNCTIONS -------------------------------------------------------------------------------------------------------------------------------------------------
 
-// returns key state. If do_once flag is used, function returns true only first time, key press is registered
+// returns a key state. If do_once flag is used, function returns true only the first time the key press is registered
 bool keypad_is_pressed(enum key_t key, bool do_once) {
 
     if (get_key_state(key)) {
@@ -128,7 +158,7 @@ void keypad_set_led(bool state) {
 
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
-// returns encoder position change since last call of this function
+// returns encoder position change since the last call of this function
 int32_t keypad_get_encoder_pos(void) {
 
     int32_t position = encoder_pos;
@@ -142,26 +172,18 @@ int32_t keypad_get_encoder_pos(void) {
 // GPIO interrupt handles encoder rotation detection
 void IO_Bank0_Handler(void) {
 
-    bool a_state = !gpio_get(ENCODER_A_GPIO);
-    bool b_state = !gpio_get(ENCODER_B_GPIO);
+    // read pin states
+    uint8_t pinstate = (gpio_get(ENCODER_A_GPIO) << 1) | gpio_get(ENCODER_B_GPIO);
 
-    if (a_state != prev_a) {
+    // determine new detector state machine state based on current state and pin states
+    encoder_detector_state = encoder_valid_states[encoder_detector_state & 0xf][pinstate];
 
-        prev_a = a_state;
-
-        if (b_state != debounced_a) {
-
-            debounced_a = b_state;
-
-            if (kernel_get_time_ms() - prev_turn_time_ms >= ENCODER_DEBOUNCE_TIME_MS) {
-
-                encoder_pos += (a_state == b_state) ? -1 : 1;
-                prev_turn_time_ms = kernel_get_time_ms();
-            }
-        }
-    }
+    // catch transition to idle state after a complete step
+    if (encoder_detector_state == ENC_IDLE_CCW) encoder_pos--;
+    if (encoder_detector_state == ENC_IDLE_CW ) encoder_pos++;
 
     gpio_acknowledge_irq(ENCODER_A_GPIO);
+    gpio_acknowledge_irq(ENCODER_B_GPIO);
 }
 
 //----------------------------------------------------------------------------------------------------------------------------------------------------------------
