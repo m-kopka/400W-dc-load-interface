@@ -36,7 +36,7 @@ const encoder_detector_state_t encoder_valid_states[7][4] = {
 
 static uint32_t key_state = 0;                          // bit field containing debounced states of push buttons
 static uint32_t key_press_time_ms[KEY_COUNT] = {0};     // time of key press [ms]
-static uint32_t key_press_acknowledged = 0;
+static uint32_t key_press_acknowledged = 0;             // bit corresponding to a key is set after keypad_is_pressed() is called with do_once flag set, reset after button release
 
 encoder_detector_state_t encoder_detector_state = ENC_IDLE;     // encoder detector state machine
 volatile int32_t encoder_pos = 0;                               // encoder knob position, reset after position is read via keypad_get_encoder_pos() function call
@@ -51,22 +51,17 @@ static inline bool get_key_acknowledged(uint32_t key) {return (key_press_acknowl
 // kernel task for handling push buttons and their debouncing
 void keypad_buttons_task(void) {
 
-    uint8_t key_debounce_states[7] = {0};
+    // index table, returns gpio number for a specific key
+    uint8_t key_gpio[KEY_COUNT] = {KEY_ENCODER_GPIO, 
+                                   KEY_MODE_GPIO,    KEY_SET_GPIO,
+                                   KEY_SEQ_GPIO,     KEY_SEQ_EN_GPIO,
+                                   KEY_MENU_GPIO,    KEY_EN_GPIO};
 
-    gpio_set_dir(KEY_ENCODER_GPIO, GPIO_DIR_INPUT);
-    gpio_set_pull(KEY_ENCODER_GPIO, GPIO_PULLUP);
-    gpio_set_dir(KEY_MODE_GPIO, GPIO_DIR_INPUT);
-    gpio_set_pull(KEY_MODE_GPIO, GPIO_PULLUP);
-    gpio_set_dir(KEY_SET_GPIO, GPIO_DIR_INPUT);
-    gpio_set_pull(KEY_SET_GPIO, GPIO_PULLUP);
-    gpio_set_dir(KEY_SEQ_GPIO, GPIO_DIR_INPUT);
-    gpio_set_pull(KEY_SEQ_GPIO, GPIO_PULLUP);
-    gpio_set_dir(KEY_SEQ_EN_GPIO, GPIO_DIR_INPUT);
-    gpio_set_pull(KEY_SEQ_EN_GPIO, GPIO_PULLUP);
-    gpio_set_dir(KEY_MENU_GPIO, GPIO_DIR_INPUT);
-    gpio_set_pull(KEY_MENU_GPIO, GPIO_PULLUP);
-    gpio_set_dir(KEY_EN_GPIO, GPIO_DIR_INPUT);
-    gpio_set_pull(KEY_EN_GPIO, GPIO_PULLUP);
+    for (uint8_t key = 0; key < KEY_COUNT; key++) {
+
+        gpio_set_dir(key_gpio[key], GPIO_DIR_INPUT);
+        gpio_set_pull(key_gpio[key], GPIO_PULLUP);
+    }
 
     pwm_init();
     pwm_set_resolution(pwm_gpio_to_slice(KEY_BACKLIGHT_LED_GPIO), 12);
@@ -80,36 +75,37 @@ void keypad_buttons_task(void) {
     gpio_set_irq(ENCODER_A_GPIO, GPIO_IRQ_EDGE_LOW | GPIO_IRQ_EDGE_HIGH, true);
     gpio_set_irq(ENCODER_B_GPIO, GPIO_IRQ_EDGE_LOW | GPIO_IRQ_EDGE_HIGH, true);
 
+    uint8_t debounce_shift_register[KEY_COUNT] = {0xf};
+
     while (1) {
 
-        // shift in current key states
-        key_debounce_states[0] = (key_debounce_states[0] << 1) | !gpio_get(KEY_ENCODER_GPIO);
-        key_debounce_states[1] = (key_debounce_states[1] << 1) | !gpio_get(KEY_MODE_GPIO);
-        key_debounce_states[2] = (key_debounce_states[2] << 1) | !gpio_get(KEY_SET_GPIO);
-        key_debounce_states[3] = (key_debounce_states[3] << 1) | !gpio_get(KEY_SEQ_GPIO);
-        key_debounce_states[4] = (key_debounce_states[4] << 1) | !gpio_get(KEY_SEQ_EN_GPIO);
-        key_debounce_states[5] = (key_debounce_states[5] << 1) | !gpio_get(KEY_MENU_GPIO);
-        key_debounce_states[6] = (key_debounce_states[6] << 1) | !gpio_get(KEY_EN_GPIO);
-
+        // loop through each key
         for (uint8_t key = 0; key < KEY_COUNT; key++) {
 
-            // 8 consecutive zeroes, key released and debounced
-            if ((key_debounce_states[key] == 0x00) && get_key_state(key)) {
+            bool debouncer_input = gpio_get(key_gpio[key]);     // sample input state
 
-                clear_bits(key_state, (1 << key));
-                clear_bits(key_press_acknowledged, (1 << key));
+            // output is not yet updated and 4 consecutive input samples were identical (input settled)
+            if ((debouncer_input == get_key_state(key)) && ((debounce_shift_register[key] == 0x0) || (debounce_shift_register[key] == 0xf))) {
+
+                // key released
+                if (debouncer_input) {
+
+                    clear_bits(key_state, (1 << key));
+                    clear_bits(key_press_acknowledged, (1 << key));
+
+                // key pressed
+                } else {
+                        
+                    set_bits(key_state, (1 << key));
+                    clear_bits(key_press_acknowledged, (1 << key));
+                    key_press_time_ms[key] = kernel_get_time_ms();
+                }
             }
 
-            // 8 consecutive ones, key pressed and debounced
-            else if ((key_debounce_states[key] == 0xff) && !get_key_state(key)) {
-
-                set_bits(key_state, (1 << key));
-                clear_bits(key_press_acknowledged, (1 << key));
-                key_press_time_ms[key] = kernel_get_time_ms();
-            }
+            debounce_shift_register[key] = ((debounce_shift_register[key] << 1) | debouncer_input) & 0xf;   // shift in the new sample
         }
 
-        kernel_sleep_ms(10);
+        kernel_sleep_ms(5);
     }
 }
 
