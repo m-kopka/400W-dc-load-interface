@@ -262,6 +262,15 @@ const uint8_t bitmap_cursor_arrow_6x8[] = {
 
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
+// setpoint cursor arrow filled
+const uint8_t bitmap_cursor_arrow_filled_6x8[] = {
+
+    6, 8, // bitmap dimensions in pixels
+    0x00, 0x18, 0x3C, 0x3C, 0x18, 0x00
+};
+
+//- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
 // omega symbol for displaying CR level
 const uint8_t bitmap_omega_6x8[] = {
 

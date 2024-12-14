@@ -38,6 +38,9 @@ extern const uint8_t bitmap_anim_dots_21x8[];
 // setpoint cursor arrow
 extern const uint8_t bitmap_cursor_arrow_6x8[];
 
+// setpoint cursor arrow filled
+extern const uint8_t bitmap_cursor_arrow_filled_6x8[];
+
 // omega symbol for displaying CR level
 extern const uint8_t bitmap_omega_6x8[];
 

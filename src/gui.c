@@ -27,8 +27,8 @@ void __print_decimal(int value, const uint8_t *font, uint8_t x_pos, uint8_t y_po
 void gui_task(void) {
 
     // start keypad kernel task
-    uint32_t keypad_buttons_stack[32];
-    kernel_create_task(keypad_buttons_task, keypad_buttons_stack, sizeof(keypad_buttons_stack), 10);
+    uint32_t keypad_buttons_stack[64];
+    kernel_create_task(keypad_buttons_task, keypad_buttons_stack, sizeof(keypad_buttons_stack), 5);
 
     screen_t current_screen = SCREEN_MAIN;
 
@@ -143,9 +143,11 @@ void gui_task(void) {
 
                 static uint32_t setting_increment = 0;              // CC, CV, CR, CP setpoint increment per encoder step (0 means encoder setting is disabled)
                 static uint32_t last_setpoint_change_time = 0;      // time of last setpoint change. Used for automatically disabling the encoder after some time of inaction
+                static bool disable_setting_timeout = false;        // persist the setpoint setting mode (never autodisable after some time of no action)
+                static bool timeout_disable_flag = false;           // flag set after persistence was changed and reset after SET button is released, makes sure change happens only one per button press
 
                 // automatically disable the encoder if no change was made for some time
-                if (setting_increment > 0 && kernel_get_time_since(last_setpoint_change_time) > 4000) setting_increment = 0;
+                if (!disable_setting_timeout && setting_increment > 0 && kernel_get_time_since(last_setpoint_change_time) > GUI_AUTO_SETPOINT_DISABLE_TIME_MS) setting_increment = 0;
 
                 // change load mode
                 if (keypad_is_pressed(KEY_MODE, true) && !load_enabled) {
@@ -155,7 +157,8 @@ void gui_task(void) {
                     else if (load_mode == LOAD_MODE_CR) load_set_mode(LOAD_MODE_CP);
                     else                                load_set_mode(LOAD_MODE_CC);
 
-                    setting_increment = 0;      // disable the encoder if mode was changed
+                    setting_increment = 0;              // disable the encoder if mode was changed
+                    disable_setting_timeout = false;    // disable setting mode latch
                 }
 
                 // enable the encoder or change the increment
@@ -180,6 +183,17 @@ void gui_task(void) {
 
                     last_setpoint_change_time = kernel_get_time_ms();
                 }
+
+                // if the set button is held, disable automatic setting mode timeout
+                if (!timeout_disable_flag && keypad_is_pressed_for_ms(KEY_SET, GUI_AUTO_SETPOINT_LATCH_TIME_MS, false)) {
+                    
+                    disable_setting_timeout = !disable_setting_timeout;
+                    timeout_disable_flag = true;                            // set the flag to not switch the latch continuously
+                    if (!disable_setting_timeout) setting_increment = 0;    // also disable the setting mode if we just disabled the latch
+                }
+
+                // reset the timeout disable flag after the set button is no longer held
+                if (!keypad_is_pressed(KEY_SET, false)) timeout_disable_flag = false;
 
                 // enable or disable the load
                 if (keypad_is_pressed(KEY_EN, true)) load_set_enable(!load_enabled);
@@ -257,7 +271,7 @@ void gui_task(void) {
 
                         if (iset_ma >= 10000) arrow_pos += 6;
 
-                        display_draw_bitmap(bitmap_cursor_arrow_6x8, arrow_pos, 40);
+                        display_draw_bitmap((disable_setting_timeout)? bitmap_cursor_arrow_filled_6x8 : bitmap_cursor_arrow_6x8, arrow_pos, 40);
                     }
 
                     __print_decimal_with_unit(iset_ma, "A", font_6x8, 0, 48, 1);
@@ -279,7 +293,7 @@ void gui_task(void) {
 
                         if (vset_mv < 10000 && setting_increment < 10000) arrow_pos -= 6;
 
-                        display_draw_bitmap(bitmap_cursor_arrow_6x8, arrow_pos, 40);
+                        display_draw_bitmap((disable_setting_timeout)? bitmap_cursor_arrow_filled_6x8 : bitmap_cursor_arrow_6x8, arrow_pos, 40);
                     }
 
                     uint8_t cursor_pos = 0;
@@ -304,7 +318,7 @@ void gui_task(void) {
                         if (rset_mr < 100000) arrow_pos -= 6;
                         if (rset_mr < 10000 && arrow_pos != 0) arrow_pos -= 6;
 
-                        display_draw_bitmap(bitmap_cursor_arrow_6x8, arrow_pos, 40);
+                        display_draw_bitmap((disable_setting_timeout)? bitmap_cursor_arrow_filled_6x8 : bitmap_cursor_arrow_6x8, arrow_pos, 40);
                     }
 
                     uint8_t cursor_pos = 0;
@@ -329,7 +343,7 @@ void gui_task(void) {
                         if (pset_mw < 100000) arrow_pos -= 6;
                         if (pset_mw < 10000 && setting_increment < 10000) arrow_pos -= 6;
 
-                        display_draw_bitmap(bitmap_cursor_arrow_6x8, arrow_pos, 40);
+                        display_draw_bitmap((disable_setting_timeout)? bitmap_cursor_arrow_filled_6x8 : bitmap_cursor_arrow_6x8, arrow_pos, 40);
                     }
 
                     uint8_t cursor_pos = 0;

@@ -26,8 +26,10 @@
 #define GUI_SETPOINT_MAX_INCREMENT_CR       10000
 #define GUI_SETPOINT_MAX_INCREMENT_CP       10000
 
-#define GUI_BUG_ENABLE_HOLD_TIME_MS     1000        // key hold time required to enable the animated bug [ms]
-#define GUI_FAULT_CLEAR_HOLD_TIME_MS    500         // key hold time required to clear a fault in the fault screen [ms]
+#define GUI_AUTO_SETPOINT_DISABLE_TIME_MS   4000    // automatic setpoint setting mode disable time after no action [ms]
+#define GUI_AUTO_SETPOINT_LATCH_TIME_MS     500     // pertist the setpoint setting mode by holding the SET button for this duration [ms]
+#define GUI_BUG_ENABLE_HOLD_TIME_MS         1000    // key hold time required to enable the animated bug [ms]
+#define GUI_FAULT_CLEAR_HOLD_TIME_MS        500     // key hold time required to clear a fault in the fault screen [ms]
 
 //---- LOAD CONTROL ----------------------------------------------------------------------------------------------------------------------------------------------
 
